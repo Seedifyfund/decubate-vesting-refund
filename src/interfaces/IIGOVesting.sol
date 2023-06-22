@@ -1,0 +1,139 @@
+// SPDX-License-Identifier: MIT
+//** DCB Vesting Interface */
+
+pragma solidity ^0.8.17;
+
+interface IIGOVesting {
+    struct ContractSetup {
+        address _innovator;
+        address _paymentReceiver;
+        address _vestedToken;
+        address _paymentToken;
+        address _tiers;
+        uint256 _totalTokenOnSale;
+        uint256 _gracePeriod;
+    }
+
+    struct VestingSetup {
+        uint32 _startTime;
+        uint32 _cliff;
+        uint32 _duration;
+        uint16 _initialUnlockPercent;
+    }
+
+    struct HasWhitelist {
+        uint256 arrIdx;
+        bool active;
+    }
+
+    struct VestingPool {
+        uint32 start;
+        uint32 cliff;
+        uint32 duration;
+        uint16 initialUnlockPercent;
+        WhitelistInfo[] whitelistPool;
+        mapping(address => HasWhitelist) hasWhitelist;
+    }
+
+    struct VestingInfo {
+        uint32 start;
+        uint32 cliff;
+        uint32 duration;
+        uint16 initialUnlockPercent;
+    }
+
+    struct WhitelistInfo {
+        uint8 refunded;
+        address wallet;
+        uint32 joinDate;
+        uint32 refundDate;
+        uint256 amount;
+        uint256 distributedAmount;
+        uint256 value;
+    }
+
+    event BuybackAndBurn(uint256 amount);
+    event Claim(address indexed token, uint256 amount, uint256 time);
+    event CrowdfundingInitialized(ContractSetup c, VestingSetup p);
+    event RaisedFundsClaimed(uint256 payment, uint256 remaining);
+    event Refund(address indexed wallet, uint256 amount);
+    event SetVestingStartTime(uint256 _newStart);
+    event SetWhitelist(address indexed wallet, uint256 amount, uint256 value);
+    event TokenClaimInitialized(address _token, VestingSetup p);
+    event VestingStrategyAdded(
+        uint256 _cliff,
+        uint256 _start,
+        uint256 _duration,
+        uint256 _initialUnlockPercent
+    );
+
+    function claimDistribution(address _wallet) external returns (bool);
+
+    function claimRaisedFunds() external;
+
+    function claimed() external view returns (bool);
+
+    function factory() external view returns (address);
+
+    function getReleasableAmount(
+        address _wallet
+    ) external view returns (uint256);
+
+    function getTotalToken(address _addr) external view returns (uint256);
+
+    function getVestAmount(address _wallet) external view returns (uint256);
+
+    function getVestingInfo() external view returns (VestingInfo memory);
+
+    function getWhitelist(
+        address _wallet
+    ) external view returns (WhitelistInfo memory);
+
+    function getWhitelistPool(
+        uint256 start,
+        uint256 count
+    ) external view returns (WhitelistInfo[] memory);
+
+    function gracePeriod() external view returns (uint256);
+
+    function hasWhitelist(address _wallet) external view returns (bool);
+
+    function initializeCrowdfunding(
+        ContractSetup memory c,
+        VestingSetup memory p
+    ) external;
+
+    function refund() external;
+
+    function setCrowdfundingWhitelist(
+        address _wallet,
+        uint256 _tokenAmount,
+        uint256 _paymentAmount
+    ) external;
+
+    function setToken(address _token) external;
+
+    function setVestingStartTime(uint32 _newStart) external;
+
+    function transferOwnership(address _newOwner) external;
+
+    function totalRefundedValue() external view returns (uint256);
+
+    function totalReturnedToken() external view returns (uint256);
+
+    function totalTokenOnSale() external view returns (uint256);
+
+    function totalVestedToken() external view returns (uint256);
+
+    function totalVestedValue() external view returns (uint256);
+
+    function vestingPool()
+        external
+        view
+        returns (
+            uint32 start,
+            uint32 cliff,
+            uint32 duration,
+            uint16 initialUnlockPercent
+        );
+}

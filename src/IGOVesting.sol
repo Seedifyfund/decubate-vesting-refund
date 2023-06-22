@@ -9,7 +9,7 @@ import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import {SafeMath} from "openzeppelin-contracts/utils/math/SafeMath.sol";
 import {Initializable} from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 
-import {IIGOVesting} from "./IIGOVesting.sol";
+import {IIGOVesting} from "./interfaces/IIGOVesting.sol";
 
 contract IGOVesting is Ownable, Initializable, IIGOVesting {
     using SafeMath for uint256;
@@ -33,18 +33,6 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     IERC20 public paymentToken;
     address public factory;
 
-    event CrowdfundingInitialized(ContractSetup c, VestingSetup p);
-    event TokenClaimInitialized(address _token, VestingSetup p);
-    event VestingStrategyAdded(
-        uint256 _cliff,
-        uint256 _start,
-        uint256 _duration,
-        uint256 _initialUnlockPercent
-    );
-    event RaisedFundsClaimed(uint256 payment, uint256 remaining);
-    event BuybackAndBurn(uint256 amount);
-    event SetVestingStartTime(uint256 _newStart);
-
     modifier onlyInnovator() {
         require(msg.sender == innovator, "Invalid access");
         _;
@@ -58,7 +46,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     function initializeCrowdfunding(
         ContractSetup calldata c,
         VestingSetup calldata p
-    ) external initializer {
+    ) external override initializer {
         innovator = c._innovator;
         paymentReceiver = c._paymentReceiver;
         vestedToken = IERC20(c._vestedToken);
@@ -99,7 +87,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         return true;
     }
 
-    function setVestingStartTime(uint32 _newStart) external {
+    function setVestingStartTime(uint32 _newStart) external override {
         require(msg.sender == factory, "Only factory");
         uint32 cliff = vestingPool.cliff - vestingPool.start;
         vestingPool.start = _newStart;
@@ -108,12 +96,12 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         emit SetVestingStartTime(_newStart);
     }
 
-    function setToken(address _token) external {
+    function setToken(address _token) external override {
         require(msg.sender == factory, "Only factory");
         vestedToken = IERC20(_token);
     }
 
-    function refund() external userInWhitelist(msg.sender) {
+    function refund() external override userInWhitelist(msg.sender) {
         uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
 
@@ -153,7 +141,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         super.transferOwnership(newOwner);
     }
 
-    function claimRaisedFunds() external onlyInnovator {
+    function claimRaisedFunds() external override onlyInnovator {
         require(
             block.timestamp > gracePeriod + vestingPool.start,
             "grace period in progress"
@@ -192,34 +180,46 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     function getWhitelist(
         address _wallet
-    ) external view userInWhitelist(_wallet) returns (WhitelistInfo memory) {
+    )
+        external
+        view
+        override
+        userInWhitelist(_wallet)
+        returns (WhitelistInfo memory)
+    {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         return vestingPool.whitelistPool[idx];
     }
 
-    function getTotalToken(address _addr) external view returns (uint256) {
+    function getTotalToken(
+        address _addr
+    ) external view override returns (uint256) {
         IERC20 _token = IERC20(_addr);
         return _token.balanceOf(address(this));
     }
 
-    function hasWhitelist(address _wallet) external view returns (bool) {
+    function hasWhitelist(
+        address _wallet
+    ) external view override returns (bool) {
         return vestingPool.hasWhitelist[_wallet].active;
     }
 
-    function getVestAmount(address _wallet) external view returns (uint256) {
+    function getVestAmount(
+        address _wallet
+    ) external view override returns (uint256) {
         return calculateVestAmount(_wallet);
     }
 
     function getReleasableAmount(
         address _wallet
-    ) external view returns (uint256) {
+    ) external view override returns (uint256) {
         return calculateReleasableAmount(_wallet);
     }
 
     function getWhitelistPool(
         uint256 start,
         uint256 count
-    ) external view returns (WhitelistInfo[] memory) {
+    ) external view override returns (WhitelistInfo[] memory) {
         WhitelistInfo[] memory _whitelist = new WhitelistInfo[](count);
         uint256 end = start + count;
         for (uint256 i = start; i < end; i++) {
@@ -228,7 +228,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         return _whitelist;
     }
 
-    function claimDistribution(address _wallet) public returns (bool) {
+    function claimDistribution(
+        address _wallet
+    ) public override returns (bool) {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
 
@@ -253,7 +255,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         address _wallet,
         uint256 _tokenAmount,
         uint256 _paymentAmount
-    ) public onlyOwner {
+    ) public override onlyOwner {
         uint256 paymentAmount = !vestingPool.hasWhitelist[_wallet].active
             ? _paymentAmount
             : _paymentAmount -
@@ -304,7 +306,12 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         emit SetWhitelist(_wallet, _amount, _value);
     }
 
-    function getVestingInfo() public view returns (VestingInfo memory) {
+    function getVestingInfo()
+        public
+        view
+        override
+        returns (VestingInfo memory)
+    {
         return
             VestingInfo({
                 cliff: vestingPool.cliff,
