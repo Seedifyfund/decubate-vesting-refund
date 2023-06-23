@@ -7,9 +7,10 @@ interface IIGOVesting {
     struct ContractSetup {
         address _innovator;
         address _paymentReceiver;
+        address _admin;
         address _vestedToken;
-        address _paymentToken;
         address _tiers;
+        uint256 _platformFee;
         uint256 _totalTokenOnSale;
         uint256 _gracePeriod;
     }
@@ -19,6 +20,13 @@ interface IIGOVesting {
         uint32 _cliff;
         uint32 _duration;
         uint16 _initialUnlockPercent;
+    }
+
+    struct UserTag {
+        uint8 refunded;
+        uint32 refundDate;
+        uint256 paymentAmount;
+        uint256 tokenAmount;
     }
 
     struct HasWhitelist {
@@ -43,13 +51,10 @@ interface IIGOVesting {
     }
 
     struct WhitelistInfo {
-        uint8 refunded;
         address wallet;
         uint32 joinDate;
-        uint32 refundDate;
         uint256 amount;
         uint256 distributedAmount;
-        uint256 value;
     }
 
     event BuybackAndBurn(uint256 amount);
@@ -69,11 +74,9 @@ interface IIGOVesting {
 
     function claimDistribution(address _wallet) external returns (bool);
 
-    function claimRaisedFunds() external;
+    function claimRaisedFunds(address _paymentToken) external;
 
-    function claimed() external view returns (bool);
-
-    function factory() external view returns (address);
+    function admin() external view returns (address);
 
     function getReleasableAmount(
         address _wallet
@@ -103,12 +106,14 @@ interface IIGOVesting {
         VestingSetup memory p
     ) external;
 
-    function refund() external;
+    function refund(string calldata _tagId) external;
 
     function setCrowdfundingWhitelist(
+        string calldata _tagId,
         address _wallet,
-        uint256 _tokenAmount,
-        uint256 _paymentAmount
+        uint256 _paymentAmount,
+        address _paymentToken,
+        uint256 _tokenAmount
     ) external;
 
     function setToken(address _token) external;
@@ -116,16 +121,6 @@ interface IIGOVesting {
     function setVestingStartTime(uint32 _newStart) external;
 
     function transferOwnership(address _newOwner) external;
-
-    function totalRefundedValue() external view returns (uint256);
-
-    function totalReturnedToken() external view returns (uint256);
-
-    function totalTokenOnSale() external view returns (uint256);
-
-    function totalVestedToken() external view returns (uint256);
-
-    function totalVestedValue() external view returns (uint256);
 
     function vestingPool()
         external

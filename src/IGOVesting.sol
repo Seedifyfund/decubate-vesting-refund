@@ -18,8 +18,12 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     VestingPool public vestingPool;
 
     // refund total values
-    uint256 public totalVestedValue;
-    uint256 public totalRefundedValue;
+    mapping(address => uint256) public totalRaisedValue;
+    mapping(address => uint256) public totalRefundedValue;
+
+    mapping(string => address) public paymentToken;
+    mapping(string => mapping(address => UserTag)) public userTag;
+
     uint256 public totalVestedToken;
     uint256 public totalReturnedToken;
     uint256 public totalTokenOnSale;
@@ -27,11 +31,10 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     uint256 public gracePeriod;
     address public innovator;
     address public paymentReceiver;
-    bool public claimed;
+    uint256 public platformFee;
 
     IERC20 public vestedToken;
-    IERC20 public paymentToken;
-    address public factory;
+    address public admin;
 
     modifier onlyInnovator() {
         require(msg.sender == innovator, "Invalid access");
@@ -49,14 +52,13 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     ) external override initializer {
         innovator = c._innovator;
         paymentReceiver = c._paymentReceiver;
+        admin = c._admin;
         vestedToken = IERC20(c._vestedToken);
-        paymentToken = IERC20(c._paymentToken);
         gracePeriod = c._gracePeriod;
         totalTokenOnSale = c._totalTokenOnSale;
+        platformFee = c._platformFee;
 
         _transferOwnership(msg.sender);
-        factory = msg.sender;
-
         addVestingStrategy(
             p._cliff,
             p._startTime,
@@ -88,7 +90,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     }
 
     function setVestingStartTime(uint32 _newStart) external override {
-        require(msg.sender == factory, "Only factory");
+        require(msg.sender == admin, "Only admin");
         uint32 cliff = vestingPool.cliff - vestingPool.start;
         vestingPool.start = _newStart;
         vestingPool.cliff = _newStart + cliff;
@@ -97,20 +99,23 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     }
 
     function setToken(address _token) external override {
-        require(msg.sender == factory, "Only factory");
+        require(msg.sender == admin, "Only admin");
         vestedToken = IERC20(_token);
     }
 
-    function refund() external override userInWhitelist(msg.sender) {
+    function refund(
+        string calldata _tagId
+    ) external override userInWhitelist(msg.sender) {
         uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
+        UserTag storage tag = userTag[_tagId][msg.sender];
 
         require(
             block.timestamp < vestingPool.start + gracePeriod &&
                 block.timestamp > vestingPool.start,
             "Not in grace period"
         );
-        require(whitelist.refunded == 0, "user already refunded");
+        require(tag.refunded == 0, "user already refunded");
         require(whitelist.distributedAmount == 0, "user already claimed");
 
         // (, uint256 tier, uint256 multi) = tiers.getTierOfUser(msg.sender);
@@ -122,15 +127,16 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         // }
 
         // uint256 fee = whitelist.value * refundFee / 10_000;
-        uint256 refundAmount = whitelist.value; // - fee;
+        uint256 refundAmount = tag.paymentAmount; // - fee;
 
-        whitelist.refunded = 1;
-        whitelist.refundDate = uint32(block.timestamp);
-        totalRefundedValue += whitelist.value;
+        tag.refunded = 1;
+        tag.refundDate = uint32(block.timestamp);
+        totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
         totalReturnedToken += whitelist.amount;
+        whitelist.amount -= tag.tokenAmount;
 
         // Transfer BUSD to user sub some percent of fee
-        paymentToken.safeTransfer(msg.sender, refundAmount);
+        IERC20(paymentToken[_tagId]).safeTransfer(msg.sender, refundAmount);
 
         emit Refund(msg.sender, refundAmount);
     }
@@ -141,30 +147,34 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         super.transferOwnership(newOwner);
     }
 
-    function claimRaisedFunds() external override onlyInnovator {
+    function claimRaisedFunds(
+        address _paymentToken
+    ) external override onlyInnovator {
         require(
             block.timestamp > gracePeriod + vestingPool.start,
             "grace period in progress"
         );
-        require(!claimed, "already claimed");
+        require(
+            _paymentToken != address(vestedToken),
+            "invalid payment token"
+        );
 
         // payment amount = total value - total refunded
-        uint256 amountPayment = totalVestedValue - totalRefundedValue;
-        // calculate fee of 5%
-        uint256 platformFee = (amountPayment * 5) / 100;
+        uint256 amountPayment = totalRaisedValue[_paymentToken] -
+            totalRefundedValue[_paymentToken];
+        // calculate fee
+        uint256 fee = (amountPayment * platformFee) / 1000;
 
-        amountPayment -= platformFee;
+        amountPayment -= fee;
 
         // amount of project tokens to return = amount not sold + amount refunded
         uint256 amountTokenToReturn = totalTokenOnSale -
             totalVestedToken +
             totalReturnedToken;
 
-        claimed = true;
-
         // transfer payment + refunded tokens to project
         if (amountPayment > 0) {
-            paymentToken.safeTransfer(innovator, amountPayment);
+            IERC20(_paymentToken).safeTransfer(innovator, amountPayment);
         }
         if (amountTokenToReturn > 0) {
             vestedToken.safeTransfer(innovator, amountTokenToReturn);
@@ -172,7 +182,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
         // transfer crowdfunding fee to payment receiver wallet
         if (platformFee > 0) {
-            paymentToken.safeTransfer(paymentReceiver, platformFee);
+            IERC20(_paymentToken).safeTransfer(paymentReceiver, platformFee);
         }
 
         emit RaisedFundsClaimed(amountPayment, amountTokenToReturn);
@@ -234,7 +244,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
 
-        require(whitelist.refunded == 0, "user already refunded");
+        require(whitelist.amount != 0, "user already refunded");
 
         uint256 releaseAmount = calculateReleasableAmount(_wallet);
 
@@ -252,26 +262,19 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     }
 
     function setCrowdfundingWhitelist(
+        string calldata _tagId,
         address _wallet,
-        uint256 _tokenAmount,
-        uint256 _paymentAmount
+        uint256 _paymentAmount,
+        address _paymentToken,
+        uint256 _tokenAmount
     ) public override onlyOwner {
-        uint256 paymentAmount = !vestingPool.hasWhitelist[_wallet].active
-            ? _paymentAmount
-            : _paymentAmount -
-                vestingPool
-                    .whitelistPool[vestingPool.hasWhitelist[_wallet].arrIdx]
-                    .value;
-        paymentToken.safeTransferFrom(_wallet, address(this), paymentAmount);
-        _setWhitelist(_wallet, _tokenAmount, _paymentAmount);
-    }
-
-    function _setWhitelist(
-        address _wallet,
-        uint256 _amount,
-        uint256 _value
-    ) internal {
         HasWhitelist storage whitelist = vestingPool.hasWhitelist[_wallet];
+        UserTag storage uTag = userTag[_tagId][_wallet];
+
+        //Payment token constant per tag
+        if (paymentToken[_tagId] == address(0)) {
+            paymentToken[_tagId] = _paymentToken;
+        }
 
         if (!whitelist.active) {
             whitelist.active = true;
@@ -280,30 +283,25 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
             vestingPool.whitelistPool.push(
                 WhitelistInfo({
                     wallet: _wallet,
-                    amount: _amount,
+                    amount: _tokenAmount,
                     distributedAmount: 0,
-                    value: _value,
-                    joinDate: uint32(block.timestamp),
-                    refundDate: 0,
-                    refunded: 0
+                    joinDate: uint32(block.timestamp)
                 })
             );
-
-            totalVestedValue += _value;
-            totalVestedToken += _amount;
         } else {
             WhitelistInfo storage w = vestingPool.whitelistPool[
                 whitelist.arrIdx
             ];
 
-            totalVestedValue += _value - w.value;
-            totalVestedToken += _amount - w.amount;
-
-            w.amount = _amount;
-            w.value = _value;
+            w.amount += _tokenAmount;
         }
 
-        emit SetWhitelist(_wallet, _amount, _value);
+        totalRaisedValue[_paymentToken] += _paymentAmount;
+        totalVestedToken += _tokenAmount;
+        uTag.paymentAmount += _paymentAmount;
+        uTag.tokenAmount += _tokenAmount;
+
+        emit SetWhitelist(_wallet, _tokenAmount, _paymentAmount);
     }
 
     function getVestingInfo()
