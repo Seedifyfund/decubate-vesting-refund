@@ -13,6 +13,7 @@ interface IIGOVesting {
         uint256 _platformFee;
         uint256 _totalTokenOnSale;
         uint256 _gracePeriod;
+        uint256 _refundDecimals;
     }
 
     struct VestingSetup {
@@ -27,6 +28,7 @@ interface IIGOVesting {
         uint32 refundDate;
         uint256 paymentAmount;
         uint256 tokenAmount;
+        uint256 refundFee;
     }
 
     struct HasWhitelist {
@@ -113,7 +115,8 @@ interface IIGOVesting {
         address _wallet,
         uint256 _paymentAmount,
         address _paymentToken,
-        uint256 _tokenAmount
+        uint256 _tokenAmount,
+        uint256 _refundFee
     ) external;
 
     function setToken(address _token) external;
