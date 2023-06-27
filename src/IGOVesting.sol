@@ -32,6 +32,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     address public innovator;
     address public paymentReceiver;
     uint256 public platformFee;
+    uint256 public decimals;
 
     IERC20 public vestedToken;
     address public admin;
@@ -57,6 +58,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         gracePeriod = c._gracePeriod;
         totalTokenOnSale = c._totalTokenOnSale;
         platformFee = c._platformFee;
+        decimals = c._decimals;
 
         _transferOwnership(msg.sender);
         addVestingStrategy(
@@ -118,16 +120,8 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         require(tag.refunded == 0, "user already refunded");
         require(whitelist.distributedAmount == 0, "user already claimed");
 
-        // (, uint256 tier, uint256 multi) = tiers.getTierOfUser(msg.sender);
-        // (,, uint256 refundFee) = tiers.tierInfo(tier);
-
-        // if (multi > 1) {
-        //     uint256 multiReduction = (multi - 1) * 50;
-        //     refundFee = refundFee > multiReduction ? refundFee - multiReduction : 0;
-        // }
-
-        // uint256 fee = whitelist.value * refundFee / 10_000;
-        uint256 refundAmount = tag.paymentAmount; // - fee;
+        uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
+        uint256 refundAmount = tag.paymentAmount - fee;
 
         tag.refunded = 1;
         tag.refundDate = uint32(block.timestamp);
@@ -135,8 +129,10 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         totalReturnedToken += whitelist.amount;
         whitelist.amount -= tag.tokenAmount;
 
-        // Transfer BUSD to user sub some percent of fee
+        // Transfer payment token to user
         IERC20(paymentToken[_tagId]).safeTransfer(msg.sender, refundAmount);
+        // Send fee to payment receiver
+        IERC20(paymentToken[_tagId]).safeTransfer(paymentReceiver, fee);
 
         emit Refund(msg.sender, refundAmount);
     }
@@ -163,7 +159,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 amountPayment = totalRaisedValue[_paymentToken] -
             totalRefundedValue[_paymentToken];
         // calculate fee
-        uint256 fee = (amountPayment * platformFee) / 1000;
+        uint256 fee = (amountPayment * platformFee) / decimals;
 
         amountPayment -= fee;
 
@@ -266,7 +262,8 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         address _wallet,
         uint256 _paymentAmount,
         address _paymentToken,
-        uint256 _tokenAmount
+        uint256 _tokenAmount,
+        uint256 _refundFee
     ) public override onlyOwner {
         HasWhitelist storage whitelist = vestingPool.hasWhitelist[_wallet];
         UserTag storage uTag = userTag[_tagId][_wallet];
@@ -300,6 +297,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         totalVestedToken += _tokenAmount;
         uTag.paymentAmount += _paymentAmount;
         uTag.tokenAmount += _tokenAmount;
+        uTag.refundFee = _refundFee;
 
         emit SetWhitelist(_wallet, _tokenAmount, _paymentAmount);
     }
