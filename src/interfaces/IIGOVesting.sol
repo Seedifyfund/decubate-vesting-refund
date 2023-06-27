@@ -13,7 +13,7 @@ interface IIGOVesting {
         uint256 _platformFee;
         uint256 _totalTokenOnSale;
         uint256 _gracePeriod;
-        uint256 _refundDecimals;
+        uint256 _decimals;
     }
 
     struct VestingSetup {

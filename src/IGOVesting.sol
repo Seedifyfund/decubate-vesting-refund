@@ -32,7 +32,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     address public innovator;
     address public paymentReceiver;
     uint256 public platformFee;
-    uint256 public refundDecimals;
+    uint256 public decimals;
 
     IERC20 public vestedToken;
     address public admin;
@@ -58,7 +58,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         gracePeriod = c._gracePeriod;
         totalTokenOnSale = c._totalTokenOnSale;
         platformFee = c._platformFee;
-        refundDecimals = c._refundDecimals;
+        decimals = c._decimals;
 
         _transferOwnership(msg.sender);
         addVestingStrategy(
@@ -120,7 +120,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         require(tag.refunded == 0, "user already refunded");
         require(whitelist.distributedAmount == 0, "user already claimed");
 
-        uint256 fee = (tag.paymentAmount * tag.refundFee) / refundDecimals;
+        uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
         uint256 refundAmount = tag.paymentAmount - fee;
 
         tag.refunded = 1;
@@ -159,7 +159,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 amountPayment = totalRaisedValue[_paymentToken] -
             totalRefundedValue[_paymentToken];
         // calculate fee
-        uint256 fee = (amountPayment * platformFee) / refundDecimals;
+        uint256 fee = (amountPayment * platformFee) / decimals;
 
         amountPayment -= fee;
 
