@@ -164,9 +164,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         amountPayment -= fee;
 
         // amount of project tokens to return = amount not sold + amount refunded
-        uint256 amountTokenToReturn = totalTokenOnSale -
-            totalVestedToken +
-            totalReturnedToken;
+        uint256 amountTokenToReturn = totalReturnedToken;
 
         // transfer payment + refunded tokens to project
         if (amountPayment > 0) {
@@ -174,11 +172,12 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         }
         if (amountTokenToReturn > 0) {
             vestedToken.safeTransfer(innovator, amountTokenToReturn);
+            totalReturnedToken = 0;
         }
 
         // transfer crowdfunding fee to payment receiver wallet
         if (platformFee > 0) {
-            IERC20(_paymentToken).safeTransfer(paymentReceiver, platformFee);
+            IERC20(_paymentToken).safeTransfer(paymentReceiver, fee);
         }
 
         emit RaisedFundsClaimed(amountPayment, amountTokenToReturn);
