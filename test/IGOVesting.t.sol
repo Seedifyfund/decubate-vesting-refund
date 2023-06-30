@@ -13,6 +13,7 @@ import {MockToken} from "./mock/MockToken.sol";
 contract IGOVestingTest is PRBTest, StdCheats {
     MockToken internal vested;
     MockToken internal payment;
+    MockToken internal payment2;
     IGOVesting internal vesting;
 
     address internal user1 = makeAddr("user1");
@@ -22,6 +23,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
     function setUp() public {
         vested = new MockToken("Sale Token", "STK", 1e35);
         payment = new MockToken("Test Stable Coin ", "BUSD", 1e35);
+        payment2 = new MockToken("Test Stable Coin ", "BUSD", 1e35);
         vesting = new IGOVesting();
 
         vested.transfer(address(vesting), 1400e18);
@@ -176,6 +178,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
         );
 
         payment.transfer(address(vesting), 700e18);
+        payment2.transfer(address(vesting), 300e18);
         vesting.setCrowdfundingWhitelist(
             "testTag1",
             user1,
@@ -188,7 +191,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
             "testTag2",
             user1,
             200e18,
-            address(vested), //Using vested token as payment itself
+            address(payment2),
             400e18,
             50
         );
@@ -200,6 +203,15 @@ contract IGOVestingTest is PRBTest, StdCheats {
             300e18,
             25
         );
+        vesting.setCrowdfundingWhitelist(
+            "testTag2",
+            user2,
+            100e18,
+            address(payment2),
+            150e18,
+            25
+        );
+
         (uint32 startTime, , , ) = vesting.vestingPool();
         vm.warp(startTime + 1);
 
@@ -207,13 +219,18 @@ contract IGOVestingTest is PRBTest, StdCheats {
         vesting.refund("testTag1");
         assertEq(payment.balanceOf(address(user1)), 95e18); //5% fee
         vesting.refund("testTag2");
-        assertEq(vested.balanceOf(address(user1)), 190e18); //5% fee
+        assertEq(payment2.balanceOf(address(user1)), 190e18); //5% fee
         vm.stopPrank();
 
         vm.warp(startTime + 2 days);
-        vm.prank(address(1));
+        vm.startPrank(address(1));
         vesting.claimRaisedFunds(address(payment));
-        assertEq(payment.balanceOf(address(user1)), 95e18); //5% platform fee
+        assertEq(payment.balanceOf(address(1)), 95e18); //5% platform fee
+        assertEq(vested.balanceOf(address(1)), 700e18);
+
+        vesting.claimRaisedFunds(address(payment2));
+        assertEq(payment2.balanceOf(address(1)), 95e18);
+        assertEq(vested.balanceOf(address(1)), 700e18); //Token amount remains same
     }
 
     function testInnovatorClaim() public {
