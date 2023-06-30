@@ -9,7 +9,6 @@ interface IIGOVesting {
         address _paymentReceiver;
         address _admin;
         address _vestedToken;
-        address _tiers;
         uint256 _platformFee;
         uint256 _totalTokenOnSale;
         uint256 _gracePeriod;
