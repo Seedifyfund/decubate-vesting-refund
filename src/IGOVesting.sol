@@ -126,7 +126,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         tag.refunded = 1;
         tag.refundDate = uint32(block.timestamp);
         totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
-        totalReturnedToken += whitelist.amount;
+        totalReturnedToken += tag.tokenAmount;
         whitelist.amount -= tag.tokenAmount;
 
         // Transfer payment token to user
