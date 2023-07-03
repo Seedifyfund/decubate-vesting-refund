@@ -103,8 +103,8 @@ interface IIGOVesting {
     function hasWhitelist(address _wallet) external view returns (bool);
 
     function initializeCrowdfunding(
-        ContractSetup memory c,
-        VestingSetup memory p
+        ContractSetup calldata c,
+        VestingSetup calldata p
     ) external;
 
     function refund(string calldata _tagId) external;
