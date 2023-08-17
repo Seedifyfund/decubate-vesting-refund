@@ -12,6 +12,7 @@ import {Initializable} from "openzeppelin-contracts/proxy/utils/Initializable.so
 import {IIGOVesting} from "./interfaces/IIGOVesting.sol";
 
 contract IGOVesting is Ownable, Initializable, IIGOVesting {
+    //review: don't use SafeMath (since 0.8.0) - all operation is already with in-build overflow/underflow check
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -27,7 +28,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     uint256 public totalVestedToken;
     uint256 public totalReturnedToken;
     uint256 public totalTokenOnSale;
-
+    
     uint256 public gracePeriod;
     address public innovator;
     address public paymentReceiver;
@@ -51,6 +52,15 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         ContractSetup calldata c,
         VestingSetup calldata p
     ) external override initializer {
+        //review: should be added checks about correctnes of data:
+        //1. innovatore shouldn't be a zero address
+        //2. paymentReceiver shouldn't be a zero address
+        //3. admin shouldn't be a zero address;
+        //4. vested token shouldn't be a zero address
+        //5. cliff shoudn't be more than 2 years (check with Sungur&Serhat)
+        //6. duration shoudn't be more than 7 days (check with Sungur&Serhat)
+        //7. check unlock percent not more than 100% (10^decimals)
+        //8. initialUnlockPercent shouldn't be more than 100% (1000)
         innovator = c._innovator;
         paymentReceiver = c._paymentReceiver;
         admin = c._admin;
@@ -58,6 +68,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         gracePeriod = c._gracePeriod;
         totalTokenOnSale = c._totalTokenOnSale;
         platformFee = c._platformFee;
+        //review: what is decimals? Can it be read from vestedToken?
         decimals = c._decimals;
 
         _transferOwnership(msg.sender);
@@ -76,7 +87,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint32 _start,
         uint32 _duration,
         uint16 _initialUnlockPercent
+        //review: why we need returns if nobody checks result?
     ) internal returns (bool) {
+        //review: unchecked{} can be used if we have diaposon check early
         vestingPool.cliff = _start + _cliff;
         vestingPool.start = _start;
         vestingPool.duration = _duration;
@@ -93,6 +106,8 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     function setVestingStartTime(uint32 _newStart) external override {
         require(msg.sender == admin, "Only admin");
+        //review: move after vestingPool.start == ...
+        //and add unchecked{} because by defaul overflow/underflow can't happen
         uint32 cliff = vestingPool.cliff - vestingPool.start;
         vestingPool.start = _newStart;
         vestingPool.cliff = _newStart + cliff;
@@ -102,6 +117,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     function setToken(address _token) external override {
         require(msg.sender == admin, "Only admin");
+        //review: check for non zero address
         vestedToken = IERC20(_token);
     }
 
@@ -111,22 +127,27 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
         UserTag storage tag = userTag[_tagId][msg.sender];
-
+        //review: move to the first line
         require(
             block.timestamp < vestingPool.start + gracePeriod &&
                 block.timestamp > vestingPool.start,
             "Not in grace period"
         );
         require(tag.refunded == 0, "user already refunded");
+        //review: move to the after WhitelistInfo storage whitlist =...
         require(whitelist.distributedAmount == 0, "user already claimed");
 
         uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
+        //review: can be used unchecked{} if we check refundFee earlier
         uint256 refundAmount = tag.paymentAmount - fee;
 
         tag.refunded = 1;
         tag.refundDate = uint32(block.timestamp);
+        //review: check if paymentToken[_tagId] exists
+        //can be used unchecked{} for next 2 lines
         totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
         totalReturnedToken += tag.tokenAmount;
+        //review: are we sure that underflow can't happen here?
         whitelist.amount -= tag.tokenAmount;
 
         // Transfer payment token to user
@@ -156,6 +177,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         );
 
         // payment amount = total value - total refunded
+        // review: Do we sure that underflow can't happen here?
         uint256 amountPayment = totalRaisedValue[_paymentToken] -
             totalRefundedValue[_paymentToken];
         // calculate fee
@@ -196,9 +218,12 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         return vestingPool.whitelistPool[idx];
     }
 
+    //review: very unusual function - what sence here? 
+    //why we need to pass _addr? 
     function getTotalToken(
         address _addr
     ) external view override returns (uint256) {
+        //review: can be done without _token var
         IERC20 _token = IERC20(_addr);
         return _token.balanceOf(address(this));
     }
@@ -225,16 +250,24 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 start,
         uint256 count
     ) external view override returns (WhitelistInfo[] memory) {
+        //review: should be max(arraySize(vestingPool.whitelistPool) - start + 1, count)
         WhitelistInfo[] memory _whitelist = new WhitelistInfo[](count);
         uint256 end = start + count;
+        //review: should use arraySize of vestingPool.whitelistPool
+        //also unchecked can be applied
+        //also ++i costs a little bit less gas if we compare with i++
         for (uint256 i = start; i < end; i++) {
             _whitelist[i - start] = vestingPool.whitelistPool[i];
         }
         return _whitelist;
     }
 
+    //review: _wallet doesn't need here, should be used msg.sender, otherwise somebody can claim instead of user 
+    //and user will lose chance to make refund
+    //!!!! USER CAN CLAIM ALL POOL - DECREASING OF whitelist.amount is absent !!!!
     function claimDistribution(
         address _wallet
+        //review: function doesn't return false at all, we don't need a return value here
     ) public override returns (bool) {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];

@@ -23,6 +23,8 @@ interface IIGOVesting {
     }
 
     struct UserTag {
+        //review: refunded should be last item in struct, after refundDate
+        //actually, better to delete "refunded" and use paymentAmount => if = 0 => funds were refunded
         uint8 refunded;
         uint32 refundDate;
         uint256 paymentAmount;
@@ -40,6 +42,7 @@ interface IIGOVesting {
         uint32 cliff;
         uint32 duration;
         uint16 initialUnlockPercent;
+        //review: move these 2 lines to the first place
         WhitelistInfo[] whitelistPool;
         mapping(address => HasWhitelist) hasWhitelist;
     }
@@ -53,6 +56,7 @@ interface IIGOVesting {
 
     struct WhitelistInfo {
         address wallet;
+        //review: joinDate should be moved to the end
         uint32 joinDate;
         uint256 amount;
         uint256 distributedAmount;
@@ -60,11 +64,13 @@ interface IIGOVesting {
 
     event BuybackAndBurn(uint256 amount);
     event Claim(address indexed token, uint256 amount, uint256 time);
+    //review: at least one parameter should be indexed
     event CrowdfundingInitialized(ContractSetup c, VestingSetup p);
     event RaisedFundsClaimed(uint256 payment, uint256 remaining);
     event Refund(address indexed wallet, uint256 amount);
     event SetVestingStartTime(uint256 _newStart);
     event SetWhitelist(address indexed wallet, uint256 amount, uint256 value);
+    //review: at least one parameter should be indexed
     event TokenClaimInitialized(address _token, VestingSetup p);
     event VestingStrategyAdded(
         uint256 _cliff,
@@ -72,13 +78,13 @@ interface IIGOVesting {
         uint256 _duration,
         uint256 _initialUnlockPercent
     );
-
+    //review: indexed
     function claimDistribution(address _wallet) external returns (bool);
-
+    //review: indexed
     function claimRaisedFunds(address _paymentToken) external;
 
     function admin() external view returns (address);
-
+    
     function getReleasableAmount(
         address _wallet
     ) external view returns (uint256);
