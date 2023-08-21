@@ -108,33 +108,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     function refund(
         string calldata _tagId
     ) external override userInWhitelist(msg.sender) {
-        uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
-        WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
-        UserTag storage tag = userTag[_tagId][msg.sender];
-
-        require(
-            block.timestamp < vestingPool.start + gracePeriod &&
-                block.timestamp > vestingPool.start,
-            "Not in grace period"
-        );
-        require(tag.refunded == 0, "user already refunded");
-        require(whitelist.distributedAmount == 0, "user already claimed");
-
-        uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
-        uint256 refundAmount = tag.paymentAmount - fee;
-
-        tag.refunded = 1;
-        tag.refundDate = uint32(block.timestamp);
-        totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
-        totalReturnedToken += tag.tokenAmount;
-        whitelist.amount -= tag.tokenAmount;
-
-        // Transfer payment token to user
-        IERC20(paymentToken[_tagId]).safeTransfer(msg.sender, refundAmount);
-        // Send fee to payment receiver
-        IERC20(paymentToken[_tagId]).safeTransfer(paymentReceiver, fee);
-
-        emit Refund(msg.sender, refundAmount);
+        _refund(msg.sender, _tagId);
     }
 
     function transferOwnership(
@@ -364,5 +338,35 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
             calculateVestAmount(_wallet).sub(
                 vestingPool.whitelistPool[idx].distributedAmount
             );
+    }
+
+    function _refund(address wallet, string memory tagId) internal {
+        uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
+        WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
+        UserTag storage tag = userTag[_tagId][msg.sender];
+
+        require(
+            block.timestamp < vestingPool.start + gracePeriod &&
+                block.timestamp > vestingPool.start,
+            "Not in grace period"
+        );
+        require(tag.refunded == 0, "user already refunded");
+        require(whitelist.distributedAmount == 0, "user already claimed");
+
+        uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
+        uint256 refundAmount = tag.paymentAmount - fee;
+
+        tag.refunded = 1;
+        tag.refundDate = uint32(block.timestamp);
+        totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
+        totalReturnedToken += tag.tokenAmount;
+        whitelist.amount -= tag.tokenAmount;
+
+        // Transfer payment token to user
+        IERC20(paymentToken[_tagId]).safeTransfer(msg.sender, refundAmount);
+        // Send fee to payment receiver
+        IERC20(paymentToken[_tagId]).safeTransfer(paymentReceiver, fee);
+
+        emit Refund(msg.sender, refundAmount);
     }
 }
