@@ -210,22 +210,11 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     function claimDistribution(
         address _wallet
     ) public override returns (bool, uint256) {
-        uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
-        WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
-
-        require(whitelist.amount != 0, "user already refunded");
-
-        uint256 releaseAmount = calculateReleasableAmount(_wallet);
-
-        require(releaseAmount > 0, "Zero amount");
-
-        whitelist.distributedAmount = whitelist.distributedAmount.add(
-            releaseAmount
-        );
-
-        vestedToken.safeTransfer(_wallet, releaseAmount);
+        uint256 releaseAmount = _updateStorageOnDistribution(_wallet);
 
         emit Claim(_wallet, releaseAmount, block.timestamp);
+
+        vestedToken.safeTransfer(_wallet, releaseAmount);
 
         return (true, releaseAmount);
     }
@@ -368,5 +357,22 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         IERC20(paymentToken[_tagId]).safeTransfer(paymentReceiver, fee);
 
         emit Refund(msg.sender, refundAmount);
+    }
+
+    function _updateStorageOnDistribution(
+        address _wallet
+    ) internal returns (uint256 releaseAmount) {
+        uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
+        WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
+
+        require(whitelist.amount != 0, "user already refunded");
+
+        releaseAmount = calculateReleasableAmount(_wallet);
+
+        require(releaseAmount > 0, "Zero amount");
+
+        whitelist.distributedAmount = whitelist.distributedAmount.add(
+            releaseAmount
+        );
     }
 }
