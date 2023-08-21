@@ -139,7 +139,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     function transferOwnership(
         address newOwner
-    ) public override(Ownable, IIGOVesting) onlyOwner {
+    ) public virtual override(Ownable, IIGOVesting) onlyOwner {
         super.transferOwnership(newOwner);
     }
 
