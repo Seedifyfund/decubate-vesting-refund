@@ -329,7 +329,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
             );
     }
 
-    function _refund(address wallet, string memory tagId) internal {
+    function _refund(address wallet, string memory _tagId) internal {
         uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
         UserTag storage tag = userTag[_tagId][msg.sender];
