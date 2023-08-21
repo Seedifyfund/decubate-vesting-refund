@@ -235,7 +235,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     function claimDistribution(
         address _wallet
-    ) public override returns (bool) {
+    ) public override returns (bool, uint256) {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
 
@@ -253,7 +253,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
         emit Claim(_wallet, releaseAmount, block.timestamp);
 
-        return true;
+        return (true, releaseAmount);
     }
 
     function setCrowdfundingWhitelist(
