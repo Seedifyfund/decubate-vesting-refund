@@ -330,9 +330,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     }
 
     function _refund(address wallet, string memory _tagId) internal {
-        uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
+        uint256 idx = vestingPool.hasWhitelist[wallet].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
-        UserTag storage tag = userTag[_tagId][msg.sender];
+        UserTag storage tag = userTag[_tagId][wallet];
 
         require(
             block.timestamp < vestingPool.start + gracePeriod &&
@@ -352,11 +352,11 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         whitelist.amount -= tag.tokenAmount;
 
         // Transfer payment token to user
-        IERC20(paymentToken[_tagId]).safeTransfer(msg.sender, refundAmount);
+        IERC20(paymentToken[_tagId]).safeTransfer(wallet, refundAmount);
         // Send fee to payment receiver
         IERC20(paymentToken[_tagId]).safeTransfer(paymentReceiver, fee);
 
-        emit Refund(msg.sender, refundAmount);
+        emit Refund(wallet, refundAmount);
     }
 
     function _updateStorageOnDistribution(
