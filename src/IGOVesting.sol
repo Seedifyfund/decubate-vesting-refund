@@ -276,15 +276,22 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 count
     ) external view override returns (WhitelistInfo[] memory) {
         //review: should be max(arraySize(vestingPool.whitelistPool) - start + 1, count)
-        WhitelistInfo[] memory _whitelist = new WhitelistInfo[](count);
-        uint256 end = start + count;
-        //review: should use arraySize of vestingPool.whitelistPool
-        //also unchecked can be applied
-        //also ++i costs a little bit less gas if we compare with i++
-        for (uint256 i = start; i < end; i++) {
-            _whitelist[i - start] = vestingPool.whitelistPool[i];
+
+        //response: Agreed. Changed the code accordingly.
+        unchecked {
+            uint256 len = count > vestingPool.whitelistPool.length - start
+                ? vestingPool.whitelistPool.length - start
+                : count;
+            WhitelistInfo[] memory _whitelist = new WhitelistInfo[](len);
+            uint256 end = start + len;
+            //review: should use arraySize of vestingPool.whitelistPool
+            //also unchecked can be applied
+            //also ++i costs a little bit less gas if we compare with i++
+            for (uint256 i = start; i < end; ++i) {
+                _whitelist[i - start] = vestingPool.whitelistPool[i];
+            }
+            return _whitelist;
         }
-        return _whitelist;
     }
 
     //review: _wallet doesn't need here, should be used msg.sender, otherwise somebody can claim instead of user
