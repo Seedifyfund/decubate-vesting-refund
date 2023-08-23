@@ -6,14 +6,13 @@ pragma solidity ^0.8.17;
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
-import {SafeMath} from "openzeppelin-contracts/utils/math/SafeMath.sol";
 import {Initializable} from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 
 import {IIGOVesting} from "./interfaces/IIGOVesting.sol";
 
 contract IGOVesting is Ownable, Initializable, IIGOVesting {
     //review: don't use SafeMath (since 0.8.0) - all operation is already with in-build overflow/underflow check
-    using SafeMath for uint256;
+    //response: Fixed
     using SafeERC20 for IERC20;
 
     VestingPool public vestingPool;
@@ -28,7 +27,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     uint256 public totalVestedToken;
     uint256 public totalReturnedToken;
     uint256 public totalTokenOnSale;
-    
+
     uint256 public gracePeriod;
     address public innovator;
     address public paymentReceiver;
@@ -87,8 +86,13 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint32 _start,
         uint32 _duration,
         uint16 _initialUnlockPercent
-        //review: why we need returns if nobody checks result?
-    ) internal returns (bool) {
+    )
+        internal
+        returns (
+            //review: why we need returns if nobody checks result?
+            bool
+        )
+    {
         //review: unchecked{} can be used if we have diaposon check early
         vestingPool.cliff = _start + _cliff;
         vestingPool.start = _start;
@@ -218,8 +222,8 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         return vestingPool.whitelistPool[idx];
     }
 
-    //review: very unusual function - what sence here? 
-    //why we need to pass _addr? 
+    //review: very unusual function - what sence here?
+    //why we need to pass _addr?
     function getTotalToken(
         address _addr
     ) external view override returns (uint256) {
@@ -262,13 +266,19 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         return _whitelist;
     }
 
-    //review: _wallet doesn't need here, should be used msg.sender, otherwise somebody can claim instead of user 
+    //review: _wallet doesn't need here, should be used msg.sender, otherwise somebody can claim instead of user
     //and user will lose chance to make refund
     //!!!! USER CAN CLAIM ALL POOL - DECREASING OF whitelist.amount is absent !!!!
     function claimDistribution(
         address _wallet
-        //review: function doesn't return false at all, we don't need a return value here
-    ) public override returns (bool) {
+    )
+        public
+        override
+        returns (
+            //review: function doesn't return false at all, we don't need a return value here
+            bool
+        )
+    {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
 
@@ -278,9 +288,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
         require(releaseAmount > 0, "Zero amount");
 
-        whitelist.distributedAmount = whitelist.distributedAmount.add(
-            releaseAmount
-        );
+        whitelist.distributedAmount =
+            whitelist.distributedAmount +
+            releaseAmount;
 
         vestedToken.safeTransfer(_wallet, releaseAmount);
 
@@ -357,7 +367,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         VestingPool storage vest = vestingPool;
 
         // initial unlock
-        uint256 initial = _amount.mul(vest.initialUnlockPercent).div(1000);
+        uint256 initial = (_amount * vest.initialUnlockPercent) / 1000;
 
         if (block.timestamp < vest.start) {
             return 0;
@@ -374,18 +384,17 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 _amount,
         VestingPool storage vest
     ) internal view returns (uint256) {
-        uint256 initial = _amount.mul(vest.initialUnlockPercent).div(1000);
+        uint256 initial = (_amount * vest.initialUnlockPercent) / 1000;
 
-        uint256 remaining = _amount.sub(initial);
+        uint256 remaining = _amount - initial;
 
         if (block.timestamp >= vest.cliff + vest.duration) {
             return _amount;
         } else {
             return
                 initial +
-                remaining.mul(block.timestamp.sub(vest.cliff)).div(
-                    vest.duration
-                );
+                (remaining * (block.timestamp - vest.cliff)) /
+                vest.duration;
         }
     }
 
@@ -394,8 +403,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     ) internal view userInWhitelist(_wallet) returns (uint256) {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         return
-            calculateVestAmount(_wallet).sub(
-                vestingPool.whitelistPool[idx].distributedAmount
-            );
+            calculateVestAmount(_wallet) -
+            vestingPool.whitelistPool[idx].distributedAmount;
     }
 }

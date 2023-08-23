@@ -9,8 +9,7 @@
             "files": "*.sol",
             "options": {
                 "useTabs": false,
-                "singleQuote": false,
-                "explicitTypes": "always"
+                "singleQuote": false
             }
         }
     ]

@@ -78,13 +78,15 @@ interface IIGOVesting {
         uint256 _duration,
         uint256 _initialUnlockPercent
     );
+
     //review: indexed
     function claimDistribution(address _wallet) external returns (bool);
+
     //review: indexed
     function claimRaisedFunds(address _paymentToken) external;
 
     function admin() external view returns (address);
-    
+
     function getReleasableAmount(
         address _wallet
     ) external view returns (uint256);
