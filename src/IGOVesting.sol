@@ -296,23 +296,25 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     //review: _wallet doesn't need here, should be used msg.sender, otherwise somebody can claim instead of user
     //and user will lose chance to make refund
+
+    //response: Agreed. This was a requirement when we were using an aggregator for claiming, but
+    // for this usecase, it actually acts as a bug and should be removed. Removed the _wallet parameter.
+
     //!!!! USER CAN CLAIM ALL POOL - DECREASING OF whitelist.amount is absent !!!!
-    function claimDistribution(
-        address _wallet
-    )
-        public
-        override
-        returns (
-            //review: function doesn't return false at all, we don't need a return value here
-            bool
-        )
-    {
-        uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
+
+    //response: That is a misunderstanding. If you look at the code, the distributed amount is
+    //modified and while calculating the releasable amount, the distributed amount is subtracted
+    function claimDistribution() public override {
+        //review: function doesn't return false at all, we don't need a return value here
+
+        //response: Agreed. Removed the return value.
+
+        uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
 
         require(whitelist.amount != 0, "user already refunded");
 
-        uint256 releaseAmount = calculateReleasableAmount(_wallet);
+        uint256 releaseAmount = calculateReleasableAmount(msg.sender);
 
         require(releaseAmount > 0, "Zero amount");
 
@@ -320,11 +322,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
             whitelist.distributedAmount +
             releaseAmount;
 
-        vestedToken.safeTransfer(_wallet, releaseAmount);
+        vestedToken.safeTransfer(msg.sender, releaseAmount);
 
-        emit Claim(_wallet, releaseAmount, block.timestamp);
-
-        return true;
+        emit Claim(msg.sender, releaseAmount, block.timestamp);
     }
 
     function setCrowdfundingWhitelist(

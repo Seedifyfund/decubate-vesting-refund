@@ -80,7 +80,7 @@ interface IIGOVesting {
     );
 
     //review: indexed
-    function claimDistribution(address _wallet) external returns (bool);
+    function claimDistribution() external;
 
     //review: indexed
     function claimRaisedFunds(address _paymentToken) external;
