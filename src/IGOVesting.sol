@@ -143,6 +143,8 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
         UserTag storage tag = userTag[_tagId][msg.sender];
         //review: move to the first line
+
+        //response: Following the design pattern of keeping the requires grouped together.
         require(
             block.timestamp < vestingPool.start + gracePeriod &&
                 block.timestamp > vestingPool.start,
@@ -150,19 +152,28 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         );
         require(tag.refunded == 0, "user already refunded");
         //review: move to the after WhitelistInfo storage whitlist =...
+
+        //response: Same as above.
         require(whitelist.distributedAmount == 0, "user already claimed");
 
         uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
         //review: can be used unchecked{} if we check refundFee earlier
+
+        //response: Unnecessary as the impact in gas savings is negligible.
         uint256 refundAmount = tag.paymentAmount - fee;
 
         tag.refunded = 1;
         tag.refundDate = uint32(block.timestamp);
         //review: check if paymentToken[_tagId] exists
         //can be used unchecked{} for next 2 lines
+
+        //response: Unnecessary check as the function will revert anyway while attempting to transfer
         totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
         totalReturnedToken += tag.tokenAmount;
         //review: are we sure that underflow can't happen here?
+
+        //response: Yes, we are sure. The amount is calculated in the setCrowdfundingWhitelist function
+        //Its always going to be <= whitelist.amount
         whitelist.amount -= tag.tokenAmount;
 
         // Transfer payment token to user
@@ -193,6 +204,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
         // payment amount = total value - total refunded
         // review: Do we sure that underflow can't happen here?
+
+        //response: Yes, as totalRefundedValue will never exceed totalRaisedValue by the
+        //same logic as users cannot refund more than they have invested.
         uint256 amountPayment = totalRaisedValue[_paymentToken] -
             totalRefundedValue[_paymentToken];
         // calculate fee
@@ -235,13 +249,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     //review: very unusual function - what sence here?
     //why we need to pass _addr?
-    function getTotalToken(
-        address _addr
-    ) external view override returns (uint256) {
-        //review: can be done without _token var
-        IERC20 _token = IERC20(_addr);
-        return _token.balanceOf(address(this));
-    }
+
+    //response: Agreed. This was needed in the FE at some point, but
+    //not anymore. Removed the function.
 
     function hasWhitelist(
         address _wallet

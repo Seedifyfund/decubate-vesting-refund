@@ -91,8 +91,6 @@ interface IIGOVesting {
         address _wallet
     ) external view returns (uint256);
 
-    function getTotalToken(address _addr) external view returns (uint256);
-
     function getVestAmount(address _wallet) external view returns (uint256);
 
     function getVestingInfo() external view returns (VestingInfo memory);
