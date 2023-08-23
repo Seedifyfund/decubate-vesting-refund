@@ -98,6 +98,8 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         //response: Agreed. Removing the return value.
 
         //review: unchecked{} can be used if we have diaposon check early
+
+        //response: Unnecessary as the impact in gas savings is negligible.
         vestingPool.cliff = _start + _cliff;
         vestingPool.start = _start;
         vestingPool.duration = _duration;
@@ -115,6 +117,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         require(msg.sender == admin, "Only admin");
         //review: move after vestingPool.start == ...
         //and add unchecked{} because by defaul overflow/underflow can't happen
+
+        //response: Didn't understood what you meant by "move after vestingPool.start == ..."
+        // Also, unncessary unchecked as the impact in gas savings is negligible.
         uint32 cliff = vestingPool.cliff - vestingPool.start;
         vestingPool.start = _newStart;
         vestingPool.cliff = _newStart + cliff;
@@ -124,7 +129,10 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     function setToken(address _token) external override {
         require(msg.sender == admin, "Only admin");
+        require(_token != address(0), "Invalid token");
         //review: check for non zero address
+
+        //response: Agreed. Added the check.
         vestedToken = IERC20(_token);
     }
 
