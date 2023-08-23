@@ -12,6 +12,7 @@ import {IIGOVesting} from "./interfaces/IIGOVesting.sol";
 
 contract IGOVesting is Ownable, Initializable, IIGOVesting {
     //review: don't use SafeMath (since 0.8.0) - all operation is already with in-build overflow/underflow check
+
     //response: Fixed
     using SafeERC20 for IERC20;
 
@@ -60,6 +61,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         //6. duration shoudn't be more than 7 days (check with Sungur&Serhat)
         //7. check unlock percent not more than 100% (10^decimals)
         //8. initialUnlockPercent shouldn't be more than 100% (1000)
+
+        //response: The entrypoint to this function is in IGO contract and I believe all necessary
+        //checks are done there. IGO contract is the only contract that can call this function.
         innovator = c._innovator;
         paymentReceiver = c._paymentReceiver;
         admin = c._admin;
@@ -68,6 +72,8 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         totalTokenOnSale = c._totalTokenOnSale;
         platformFee = c._platformFee;
         //review: what is decimals? Can it be read from vestedToken?
+
+        //response: Decimal point used for calculating fees.
         decimals = c._decimals;
 
         _transferOwnership(msg.sender);
@@ -86,13 +92,11 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint32 _start,
         uint32 _duration,
         uint16 _initialUnlockPercent
-    )
-        internal
-        returns (
-            //review: why we need returns if nobody checks result?
-            bool
-        )
-    {
+    ) internal {
+        //review: why we need returns if nobody checks result?
+
+        //response: Agreed. Removing the return value.
+
         //review: unchecked{} can be used if we have diaposon check early
         vestingPool.cliff = _start + _cliff;
         vestingPool.start = _start;
@@ -105,7 +109,6 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
             _duration,
             _initialUnlockPercent
         );
-        return true;
     }
 
     function setVestingStartTime(uint32 _newStart) external override {
