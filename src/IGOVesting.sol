@@ -139,54 +139,12 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     function refund(
         string calldata _tagId
     ) external override userInWhitelist(msg.sender) {
-        uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
-        WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
-        UserTag storage tag = userTag[_tagId][msg.sender];
-        //review: move to the first line
-
-        //response: Following the design pattern of keeping the requires grouped together.
-        require(
-            block.timestamp < vestingPool.start + gracePeriod &&
-                block.timestamp > vestingPool.start,
-            "Not in grace period"
-        );
-        require(tag.refunded == 0, "user already refunded");
-        //review: move to the after WhitelistInfo storage whitlist =...
-
-        //response: Same as above.
-        require(whitelist.distributedAmount == 0, "user already claimed");
-
-        uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
-        //review: can be used unchecked{} if we check refundFee earlier
-
-        //response: Unnecessary as the impact in gas savings is negligible.
-        uint256 refundAmount = tag.paymentAmount - fee;
-
-        tag.refunded = 1;
-        tag.refundDate = uint32(block.timestamp);
-        //review: check if paymentToken[_tagId] exists
-        //can be used unchecked{} for next 2 lines
-
-        //response: Unnecessary check as the function will revert anyway while attempting to transfer
-        totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
-        totalReturnedToken += tag.tokenAmount;
-        //review: are we sure that underflow can't happen here?
-
-        //response: Yes, we are sure. The amount is calculated in the setCrowdfundingWhitelist function
-        //Its always going to be <= whitelist.amount
-        whitelist.amount -= tag.tokenAmount;
-
-        // Transfer payment token to user
-        IERC20(paymentToken[_tagId]).safeTransfer(msg.sender, refundAmount);
-        // Send fee to payment receiver
-        IERC20(paymentToken[_tagId]).safeTransfer(paymentReceiver, fee);
-
-        emit Refund(msg.sender, refundAmount);
+        _refund(msg.sender, _tagId);
     }
 
     function transferOwnership(
         address newOwner
-    ) public override(Ownable, IIGOVesting) onlyOwner {
+    ) public virtual override(Ownable, IIGOVesting) onlyOwner {
         super.transferOwnership(newOwner);
     }
 
@@ -294,37 +252,16 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         }
     }
 
-    //review: _wallet doesn't need here, should be used msg.sender, otherwise somebody can claim instead of user
-    //and user will lose chance to make refund
+    function claimDistribution(
+        address _wallet
+    ) public override returns (bool, uint256) {
+        uint256 releaseAmount = _updateStorageOnDistribution(_wallet);
 
-    //response: Agreed. This was a requirement when we were using an aggregator for claiming, but
-    // for this usecase, it actually acts as a bug and should be removed. Removed the _wallet parameter.
+        emit Claim(_wallet, releaseAmount, block.timestamp);
 
-    //!!!! USER CAN CLAIM ALL POOL - DECREASING OF whitelist.amount is absent !!!!
+        vestedToken.safeTransfer(_wallet, releaseAmount);
 
-    //response: That is a misunderstanding. If you look at the code, the distributed amount is
-    //modified and while calculating the releasable amount, the distributed amount is subtracted
-    function claimDistribution() public override {
-        //review: function doesn't return false at all, we don't need a return value here
-
-        //response: Agreed. Removed the return value.
-
-        uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
-        WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
-
-        require(whitelist.amount != 0, "user already refunded");
-
-        uint256 releaseAmount = calculateReleasableAmount(msg.sender);
-
-        require(releaseAmount > 0, "Zero amount");
-
-        whitelist.distributedAmount =
-            whitelist.distributedAmount +
-            releaseAmount;
-
-        vestedToken.safeTransfer(msg.sender, releaseAmount);
-
-        emit Claim(msg.sender, releaseAmount, block.timestamp);
+        return (true, releaseAmount);
     }
 
     function setCrowdfundingWhitelist(
@@ -433,5 +370,52 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         return
             calculateVestAmount(_wallet) -
             vestingPool.whitelistPool[idx].distributedAmount;
+    }
+
+    function _refund(address wallet, string memory _tagId) internal {
+        uint256 idx = vestingPool.hasWhitelist[wallet].arrIdx;
+        WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
+        UserTag storage tag = userTag[_tagId][wallet];
+
+        require(
+            block.timestamp < vestingPool.start + gracePeriod &&
+                block.timestamp > vestingPool.start,
+            "Not in grace period"
+        );
+        require(tag.refunded == 0, "user already refunded");
+        require(whitelist.distributedAmount == 0, "user already claimed");
+
+        uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
+        uint256 refundAmount = tag.paymentAmount - fee;
+
+        tag.refunded = 1;
+        tag.refundDate = uint32(block.timestamp);
+        totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
+        totalReturnedToken += tag.tokenAmount;
+        whitelist.amount -= tag.tokenAmount;
+
+        // Transfer payment token to user
+        IERC20(paymentToken[_tagId]).safeTransfer(wallet, refundAmount);
+        // Send fee to payment receiver
+        IERC20(paymentToken[_tagId]).safeTransfer(paymentReceiver, fee);
+
+        emit Refund(wallet, refundAmount);
+    }
+
+    function _updateStorageOnDistribution(
+        address _wallet
+    ) internal returns (uint256 releaseAmount) {
+        uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
+        WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
+
+        require(whitelist.amount != 0, "user already refunded");
+
+        releaseAmount = calculateReleasableAmount(_wallet);
+
+        require(releaseAmount > 0, "Zero amount");
+
+        whitelist.distributedAmount = whitelist.distributedAmount.add(
+            releaseAmount
+        );
     }
 }
