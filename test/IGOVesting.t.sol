@@ -104,14 +104,14 @@ contract IGOVestingTest is PRBTest, StdCheats {
         setParams();
         uint256 balBefore = vested.balanceOf(address(this));
         uint256 claimAmount = vesting.getReleasableAmount(address(this));
-        vesting.claimDistribution(address(this));
+        vesting.claimDistribution();
         assertEq(vested.balanceOf(address(this)) - balBefore, claimAmount);
     }
 
     function testCrowdfundingSetupCorrectly() external {
         setParams();
         // correct balances
-        assertTrue(vesting.getTotalToken(address(vested)) == 1400e18);
+        assertTrue(vested.balanceOf(address(vesting)) == 1400e18);
         assertTrue(payment.balanceOf(address(vesting)) == 100e18);
 
         // whitelist setup
@@ -150,7 +150,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
 
         // cannot claim after refund
         vm.expectRevert(bytes("user already refunded"));
-        vesting.claimDistribution(address(this));
+        vesting.claimDistribution();
     }
 
     function testRefundTags() public {
