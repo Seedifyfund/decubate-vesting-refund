@@ -6,13 +6,14 @@ pragma solidity ^0.8.17;
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
-import {SafeMath} from "openzeppelin-contracts/utils/math/SafeMath.sol";
 import {Initializable} from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 
 import {IIGOVesting} from "./interfaces/IIGOVesting.sol";
 
 contract IGOVesting is Ownable, Initializable, IIGOVesting {
-    using SafeMath for uint256;
+    //review: don't use SafeMath (since 0.8.0) - all operation is already with in-build overflow/underflow check
+
+    //response: Fixed
     using SafeERC20 for IERC20;
 
     VestingPool public vestingPool;
@@ -51,6 +52,18 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         ContractSetup calldata c,
         VestingSetup calldata p
     ) external override initializer {
+        //review: should be added checks about correctnes of data:
+        //1. innovatore shouldn't be a zero address
+        //2. paymentReceiver shouldn't be a zero address
+        //3. admin shouldn't be a zero address;
+        //4. vested token shouldn't be a zero address
+        //5. cliff shoudn't be more than 2 years (check with Sungur&Serhat)
+        //6. duration shoudn't be more than 7 days (check with Sungur&Serhat)
+        //7. check unlock percent not more than 100% (10^decimals)
+        //8. initialUnlockPercent shouldn't be more than 100% (1000)
+
+        //response: The entrypoint to this function is in IGO contract and I believe all necessary
+        //checks are done there. IGO contract is the only contract that can call this function.
         innovator = c._innovator;
         paymentReceiver = c._paymentReceiver;
         admin = c._admin;
@@ -58,6 +71,9 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         gracePeriod = c._gracePeriod;
         totalTokenOnSale = c._totalTokenOnSale;
         platformFee = c._platformFee;
+        //review: what is decimals? Can it be read from vestedToken?
+
+        //response: Decimal point used for calculating fees.
         decimals = c._decimals;
 
         _transferOwnership(msg.sender);
@@ -76,7 +92,14 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint32 _start,
         uint32 _duration,
         uint16 _initialUnlockPercent
-    ) internal returns (bool) {
+    ) internal {
+        //review: why we need returns if nobody checks result?
+
+        //response: Agreed. Removing the return value.
+
+        //review: unchecked{} can be used if we have diaposon check early
+
+        //response: Unnecessary as the impact in gas savings is negligible.
         vestingPool.cliff = _start + _cliff;
         vestingPool.start = _start;
         vestingPool.duration = _duration;
@@ -88,11 +111,15 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
             _duration,
             _initialUnlockPercent
         );
-        return true;
     }
 
     function setVestingStartTime(uint32 _newStart) external override {
         require(msg.sender == admin, "Only admin");
+        //review: move after vestingPool.start == ...
+        //and add unchecked{} because by defaul overflow/underflow can't happen
+
+        //response: Didn't understood what you meant by "move after vestingPool.start == ..."
+        // Also, unncessary unchecked as the impact in gas savings is negligible.
         uint32 cliff = vestingPool.cliff - vestingPool.start;
         vestingPool.start = _newStart;
         vestingPool.cliff = _newStart + cliff;
@@ -102,6 +129,10 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     function setToken(address _token) external override {
         require(msg.sender == admin, "Only admin");
+        require(_token != address(0), "Invalid token");
+        //review: check for non zero address
+
+        //response: Agreed. Added the check.
         vestedToken = IERC20(_token);
     }
 
@@ -111,22 +142,38 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
         UserTag storage tag = userTag[_tagId][msg.sender];
+        //review: move to the first line
 
+        //response: Following the design pattern of keeping the requires grouped together.
         require(
             block.timestamp < vestingPool.start + gracePeriod &&
                 block.timestamp > vestingPool.start,
             "Not in grace period"
         );
         require(tag.refunded == 0, "user already refunded");
+        //review: move to the after WhitelistInfo storage whitlist =...
+
+        //response: Same as above.
         require(whitelist.distributedAmount == 0, "user already claimed");
 
         uint256 fee = (tag.paymentAmount * tag.refundFee) / decimals;
+        //review: can be used unchecked{} if we check refundFee earlier
+
+        //response: Unnecessary as the impact in gas savings is negligible.
         uint256 refundAmount = tag.paymentAmount - fee;
 
         tag.refunded = 1;
         tag.refundDate = uint32(block.timestamp);
+        //review: check if paymentToken[_tagId] exists
+        //can be used unchecked{} for next 2 lines
+
+        //response: Unnecessary check as the function will revert anyway while attempting to transfer
         totalRefundedValue[paymentToken[_tagId]] += tag.paymentAmount;
         totalReturnedToken += tag.tokenAmount;
+        //review: are we sure that underflow can't happen here?
+
+        //response: Yes, we are sure. The amount is calculated in the setCrowdfundingWhitelist function
+        //Its always going to be <= whitelist.amount
         whitelist.amount -= tag.tokenAmount;
 
         // Transfer payment token to user
@@ -156,6 +203,10 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         );
 
         // payment amount = total value - total refunded
+        // review: Do we sure that underflow can't happen here?
+
+        //response: Yes, as totalRefundedValue will never exceed totalRaisedValue by the
+        //same logic as users cannot refund more than they have invested.
         uint256 amountPayment = totalRaisedValue[_paymentToken] -
             totalRefundedValue[_paymentToken];
         // calculate fee
@@ -196,12 +247,11 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         return vestingPool.whitelistPool[idx];
     }
 
-    function getTotalToken(
-        address _addr
-    ) external view override returns (uint256) {
-        IERC20 _token = IERC20(_addr);
-        return _token.balanceOf(address(this));
-    }
+    //review: very unusual function - what sence here?
+    //why we need to pass _addr?
+
+    //response: Agreed. This was needed in the FE at some point, but
+    //not anymore. Removed the function.
 
     function hasWhitelist(
         address _wallet
@@ -225,35 +275,56 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 start,
         uint256 count
     ) external view override returns (WhitelistInfo[] memory) {
-        WhitelistInfo[] memory _whitelist = new WhitelistInfo[](count);
-        uint256 end = start + count;
-        for (uint256 i = start; i < end; i++) {
-            _whitelist[i - start] = vestingPool.whitelistPool[i];
+        //review: should be max(arraySize(vestingPool.whitelistPool) - start + 1, count)
+
+        //response: Agreed. Changed the code accordingly.
+        unchecked {
+            uint256 len = count > vestingPool.whitelistPool.length - start
+                ? vestingPool.whitelistPool.length - start
+                : count;
+            WhitelistInfo[] memory _whitelist = new WhitelistInfo[](len);
+            uint256 end = start + len;
+            //review: should use arraySize of vestingPool.whitelistPool
+            //also unchecked can be applied
+            //also ++i costs a little bit less gas if we compare with i++
+            for (uint256 i = start; i < end; ++i) {
+                _whitelist[i - start] = vestingPool.whitelistPool[i];
+            }
+            return _whitelist;
         }
-        return _whitelist;
     }
 
-    function claimDistribution(
-        address _wallet
-    ) public override returns (bool) {
-        uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
+    //review: _wallet doesn't need here, should be used msg.sender, otherwise somebody can claim instead of user
+    //and user will lose chance to make refund
+
+    //response: Agreed. This was a requirement when we were using an aggregator for claiming, but
+    // for this usecase, it actually acts as a bug and should be removed. Removed the _wallet parameter.
+
+    //!!!! USER CAN CLAIM ALL POOL - DECREASING OF whitelist.amount is absent !!!!
+
+    //response: That is a misunderstanding. If you look at the code, the distributed amount is
+    //modified and while calculating the releasable amount, the distributed amount is subtracted
+    function claimDistribution() public override {
+        //review: function doesn't return false at all, we don't need a return value here
+
+        //response: Agreed. Removed the return value.
+
+        uint256 idx = vestingPool.hasWhitelist[msg.sender].arrIdx;
         WhitelistInfo storage whitelist = vestingPool.whitelistPool[idx];
 
         require(whitelist.amount != 0, "user already refunded");
 
-        uint256 releaseAmount = calculateReleasableAmount(_wallet);
+        uint256 releaseAmount = calculateReleasableAmount(msg.sender);
 
         require(releaseAmount > 0, "Zero amount");
 
-        whitelist.distributedAmount = whitelist.distributedAmount.add(
-            releaseAmount
-        );
+        whitelist.distributedAmount =
+            whitelist.distributedAmount +
+            releaseAmount;
 
-        vestedToken.safeTransfer(_wallet, releaseAmount);
+        vestedToken.safeTransfer(msg.sender, releaseAmount);
 
-        emit Claim(_wallet, releaseAmount, block.timestamp);
-
-        return true;
+        emit Claim(msg.sender, releaseAmount, block.timestamp);
     }
 
     function setCrowdfundingWhitelist(
@@ -324,7 +395,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         VestingPool storage vest = vestingPool;
 
         // initial unlock
-        uint256 initial = _amount.mul(vest.initialUnlockPercent).div(1000);
+        uint256 initial = (_amount * vest.initialUnlockPercent) / 1000;
 
         if (block.timestamp < vest.start) {
             return 0;
@@ -341,18 +412,17 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         uint256 _amount,
         VestingPool storage vest
     ) internal view returns (uint256) {
-        uint256 initial = _amount.mul(vest.initialUnlockPercent).div(1000);
+        uint256 initial = (_amount * vest.initialUnlockPercent) / 1000;
 
-        uint256 remaining = _amount.sub(initial);
+        uint256 remaining = _amount - initial;
 
         if (block.timestamp >= vest.cliff + vest.duration) {
             return _amount;
         } else {
             return
                 initial +
-                remaining.mul(block.timestamp.sub(vest.cliff)).div(
-                    vest.duration
-                );
+                (remaining * (block.timestamp - vest.cliff)) /
+                vest.duration;
         }
     }
 
@@ -361,8 +431,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     ) internal view userInWhitelist(_wallet) returns (uint256) {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         return
-            calculateVestAmount(_wallet).sub(
-                vestingPool.whitelistPool[idx].distributedAmount
-            );
+            calculateVestAmount(_wallet) -
+            vestingPool.whitelistPool[idx].distributedAmount;
     }
 }
