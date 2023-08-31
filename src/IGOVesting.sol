@@ -3,18 +3,17 @@
 
 pragma solidity ^0.8.17;
 
-import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
-import {SafeERC20, IERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
-import {Initializable} from "openzeppelin-contracts/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {SafeERC20Upgradeable, IERC20Upgradeable} from "@openzeppelin-contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import {SafeMathUpgradeable} from "@openzeppelin-contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 
 import {IIGOVesting} from "./interfaces/IIGOVesting.sol";
 
-contract IGOVesting is Ownable, Initializable, IIGOVesting {
+contract IGOVesting is OwnableUpgradeable, IIGOVesting {
     //review: don't use SafeMath (since 0.8.0) - all operation is already with in-build overflow/underflow check
 
     //response: Fixed
-    using SafeERC20 for IERC20;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     VestingPool public vestingPool;
 
@@ -35,7 +34,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
     uint256 public platformFee;
     uint256 public decimals;
 
-    IERC20 public vestedToken;
+    IERC20Upgradeable public vestedToken;
     address public admin;
 
     modifier onlyInnovator() {
@@ -67,7 +66,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         innovator = c._innovator;
         paymentReceiver = c._paymentReceiver;
         admin = c._admin;
-        vestedToken = IERC20(c._vestedToken);
+        vestedToken = IERC20Upgradeable(c._vestedToken);
         gracePeriod = c._gracePeriod;
         totalTokenOnSale = c._totalTokenOnSale;
         platformFee = c._platformFee;
@@ -133,7 +132,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         //review: check for non zero address
 
         //response: Agreed. Added the check.
-        vestedToken = IERC20(_token);
+        vestedToken = IERC20Upgradeable(_token);
     }
 
     function refund(
@@ -144,7 +143,7 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
     function transferOwnership(
         address newOwner
-    ) public virtual override(Ownable, IIGOVesting) onlyOwner {
+    ) public virtual override(OwnableUpgradeable, IIGOVesting) onlyOwner {
         super.transferOwnership(newOwner);
     }
 
@@ -177,7 +176,10 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
         // transfer payment + refunded tokens to project
         if (amountPayment > 0) {
-            IERC20(_paymentToken).safeTransfer(innovator, amountPayment);
+            IERC20Upgradeable(_paymentToken).safeTransfer(
+                innovator,
+                amountPayment
+            );
         }
         if (amountTokenToReturn > 0) {
             vestedToken.safeTransfer(innovator, amountTokenToReturn);
@@ -186,7 +188,10 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
 
         // transfer crowdfunding fee to payment receiver wallet
         if (platformFee > 0) {
-            IERC20(_paymentToken).safeTransfer(paymentReceiver, fee);
+            IERC20Upgradeable(_paymentToken).safeTransfer(
+                paymentReceiver,
+                fee
+            );
         }
 
         emit RaisedFundsClaimed(amountPayment, amountTokenToReturn);
@@ -395,9 +400,15 @@ contract IGOVesting is Ownable, Initializable, IIGOVesting {
         whitelist.amount -= tag.tokenAmount;
 
         // Transfer payment token to user
-        IERC20(paymentToken[_tagId]).safeTransfer(wallet, refundAmount);
+        IERC20Upgradeable(paymentToken[_tagId]).safeTransfer(
+            wallet,
+            refundAmount
+        );
         // Send fee to payment receiver
-        IERC20(paymentToken[_tagId]).safeTransfer(paymentReceiver, fee);
+        IERC20Upgradeable(paymentToken[_tagId]).safeTransfer(
+            paymentReceiver,
+            fee
+        );
 
         emit Refund(wallet, refundAmount);
     }
