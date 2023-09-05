@@ -425,8 +425,8 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
 
         require(releaseAmount > 0, "Zero amount");
 
-        whitelist.distributedAmount = whitelist.distributedAmount.add(
-            releaseAmount
-        );
+        whitelist.distributedAmount =
+            whitelist.distributedAmount +
+            releaseAmount;
     }
 }
