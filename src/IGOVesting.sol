@@ -138,15 +138,16 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         uint256 amountTokenToReturn = totalReturnedToken;
 
         // transfer payment + refunded tokens to project
+        if (amountTokenToReturn > 0) {
+            totalReturnedToken = 0;
+            vestedToken.safeTransfer(innovator, amountTokenToReturn);
+        }
+
         if (amountPayment > 0) {
             IERC20Upgradeable(_paymentToken).safeTransfer(
                 innovator,
                 amountPayment
             );
-        }
-        if (amountTokenToReturn > 0) {
-            vestedToken.safeTransfer(innovator, amountTokenToReturn);
-            totalReturnedToken = 0;
         }
 
         // transfer crowdfunding fee to payment receiver wallet
