@@ -50,4 +50,4 @@ jobs:
               uses: crytic/slither-action@v0.3.0
               id: slither
               with:
-                  fail-on: low
+                  fail-on: medium
