@@ -10,9 +10,6 @@ import {SafeMathUpgradeable} from "@openzeppelin-contracts-upgradeable/utils/mat
 import {IIGOVesting} from "./interfaces/IIGOVesting.sol";
 
 contract IGOVesting is OwnableUpgradeable, IIGOVesting {
-    //review: don't use SafeMath (since 0.8.0) - all operation is already with in-build overflow/underflow check
-
-    //response: Fixed
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     VestingPool public vestingPool;
@@ -51,18 +48,6 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         ContractSetup calldata c,
         VestingSetup calldata p
     ) external override initializer {
-        //review: should be added checks about correctnes of data:
-        //1. innovatore shouldn't be a zero address
-        //2. paymentReceiver shouldn't be a zero address
-        //3. admin shouldn't be a zero address;
-        //4. vested token shouldn't be a zero address
-        //5. cliff shoudn't be more than 2 years (check with Sungur&Serhat)
-        //6. duration shoudn't be more than 7 days (check with Sungur&Serhat)
-        //7. check unlock percent not more than 100% (10^decimals)
-        //8. initialUnlockPercent shouldn't be more than 100% (1000)
-
-        //response: The entrypoint to this function is in IGO contract and I believe all necessary
-        //checks are done there. IGO contract is the only contract that can call this function.
         innovator = c._innovator;
         paymentReceiver = c._paymentReceiver;
         admin = c._admin;
@@ -70,9 +55,6 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         gracePeriod = c._gracePeriod;
         totalTokenOnSale = c._totalTokenOnSale;
         platformFee = c._platformFee;
-        //review: what is decimals? Can it be read from vestedToken?
-
-        //response: Decimal point used for calculating fees.
         decimals = c._decimals;
 
         _transferOwnership(msg.sender);
@@ -92,13 +74,6 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         uint32 _duration,
         uint16 _initialUnlockPercent
     ) internal {
-        //review: why we need returns if nobody checks result?
-
-        //response: Agreed. Removing the return value.
-
-        //review: unchecked{} can be used if we have diaposon check early
-
-        //response: Unnecessary as the impact in gas savings is negligible.
         vestingPool.cliff = _start + _cliff;
         vestingPool.start = _start;
         vestingPool.duration = _duration;
@@ -114,11 +89,6 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
 
     function setVestingStartTime(uint32 _newStart) external override {
         require(msg.sender == admin, "Only admin");
-        //review: move after vestingPool.start == ...
-        //and add unchecked{} because by defaul overflow/underflow can't happen
-
-        //response: Didn't understood what you meant by "move after vestingPool.start == ..."
-        // Also, unncessary unchecked as the impact in gas savings is negligible.
         uint32 cliff = vestingPool.cliff - vestingPool.start;
         vestingPool.start = _newStart;
         vestingPool.cliff = _newStart + cliff;
@@ -129,9 +99,6 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
     function setToken(address _token) external override {
         require(msg.sender == admin, "Only admin");
         require(_token != address(0), "Invalid token");
-        //review: check for non zero address
-
-        //response: Agreed. Added the check.
         vestedToken = IERC20Upgradeable(_token);
     }
 
@@ -160,10 +127,6 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         );
 
         // payment amount = total value - total refunded
-        // review: Do we sure that underflow can't happen here?
-
-        //response: Yes, as totalRefundedValue will never exceed totalRaisedValue by the
-        //same logic as users cannot refund more than they have invested.
         uint256 amountPayment = totalRaisedValue[_paymentToken] -
             totalRefundedValue[_paymentToken];
         // calculate fee
@@ -210,12 +173,6 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         return vestingPool.whitelistPool[idx];
     }
 
-    //review: very unusual function - what sence here?
-    //why we need to pass _addr?
-
-    //response: Agreed. This was needed in the FE at some point, but
-    //not anymore. Removed the function.
-
     function hasWhitelist(
         address _wallet
     ) external view override returns (bool) {
@@ -238,18 +195,12 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         uint256 start,
         uint256 count
     ) external view override returns (WhitelistInfo[] memory) {
-        //review: should be max(arraySize(vestingPool.whitelistPool) - start + 1, count)
-
-        //response: Agreed. Changed the code accordingly.
         unchecked {
             uint256 len = count > vestingPool.whitelistPool.length - start
                 ? vestingPool.whitelistPool.length - start
                 : count;
             WhitelistInfo[] memory _whitelist = new WhitelistInfo[](len);
             uint256 end = start + len;
-            //review: should use arraySize of vestingPool.whitelistPool
-            //also unchecked can be applied
-            //also ++i costs a little bit less gas if we compare with i++
             for (uint256 i = start; i < end; ++i) {
                 _whitelist[i - start] = vestingPool.whitelistPool[i];
             }
@@ -257,14 +208,12 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         }
     }
 
-    function claimDistribution(
-        address _wallet
-    ) public override returns (bool, uint256) {
-        uint256 releaseAmount = _updateStorageOnDistribution(_wallet);
+    function claimDistribution() public override returns (bool, uint256) {
+        uint256 releaseAmount = _updateStorageOnDistribution(msg.sender);
 
-        emit Claim(_wallet, releaseAmount, block.timestamp);
+        emit Claim(msg.sender, releaseAmount, block.timestamp);
 
-        vestedToken.safeTransfer(_wallet, releaseAmount);
+        vestedToken.safeTransfer(msg.sender, releaseAmount);
 
         return (true, releaseAmount);
     }
