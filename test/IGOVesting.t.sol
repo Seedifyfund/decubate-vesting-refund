@@ -62,27 +62,28 @@ contract IGOVestingTest is PRBTest, StdCheats {
             1000e18,
             10
         );
+
+        vesting.transferOwnership(address(this));
     }
 
     function testAddLinearVesting() external {
         setParams();
-        (
-            uint256 start,
-            uint256 cliff,
-            uint256 duration,
-            uint256 initial
-        ) = vesting.vestingPool();
+        IIGOVesting.VestingInfo memory vest = vesting.getVestingInfo();
 
-        assertEq(cliff, block.timestamp + 100_000);
-        assertEq(start, block.timestamp);
-        assertEq(duration, 10_000_000);
-        assertEq(initial, 100);
+        assertEq(vest.cliff, block.timestamp + 100_000);
+        assertEq(vest.start, block.timestamp);
+        assertEq(vest.duration, 10_000_000);
+        assertEq(vest.initialUnlockPercent, 100);
     }
 
     function testGetVestAmount() external {
         setParams();
 
         vm.warp(block.timestamp - 1);
+        IIGOVesting.WhitelistInfo[] memory whitelists = vesting
+            .getWhitelistPool(0, 1);
+        assertEq(whitelists.length, 1);
+        assertTrue(vesting.hasWhitelist(whitelists[0].wallet));
         uint256 amount = vesting.getVestAmount(address(this));
         assertEq(amount, 0); //Nothing until
         vm.warp(block.timestamp + 1);
@@ -96,6 +97,11 @@ contract IGOVestingTest is PRBTest, StdCheats {
     function testGetReleasableAmountLinear() external {
         setParams();
         vm.warp(block.timestamp + 10 days);
+        IIGOVesting.WhitelistInfo memory whitelist = vesting.getWhitelist(
+            address(this)
+        );
+        assertEq(whitelist.amount, 1000e18);
+        assertEq(whitelist.wallet, address(this));
         uint256 amount = vesting.getReleasableAmount(address(this));
         assertEq(amount, vesting.getVestAmount(address(this)));
     }
