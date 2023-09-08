@@ -7,8 +7,9 @@
         "test": "test"
     },
     "scripts": {
-        "test": "hardhat test",
+        "test": "forge test",
         "prepare": "husky install",
+        "coverage": "bash scripts/coverage.sh",
         "prettier": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,sol}\""
     },
     "author": "Devan Non <devanon@chainstride.capital>",
