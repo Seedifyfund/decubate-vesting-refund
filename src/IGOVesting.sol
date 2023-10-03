@@ -4,12 +4,16 @@
 pragma solidity ^0.8.17;
 
 import {OwnableUpgradeable} from "@openzeppelin-contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin-contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {SafeERC20Upgradeable, IERC20Upgradeable} from "@openzeppelin-contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import {SafeMathUpgradeable} from "@openzeppelin-contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 
 import {IIGOVesting} from "./interfaces/IIGOVesting.sol";
 
-contract IGOVesting is OwnableUpgradeable, IIGOVesting {
+contract IGOVesting is
+    OwnableUpgradeable,
+    IIGOVesting,
+    AccessControlUpgradeable
+{
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     VestingPool public vestingPool;
@@ -26,18 +30,14 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
     uint256 public totalTokenOnSale;
 
     uint256 public gracePeriod;
-    address public innovator;
     address public paymentReceiver;
     uint256 public platformFee;
     uint256 public decimals;
 
     IERC20Upgradeable public vestedToken;
-    address public admin;
 
-    modifier onlyInnovator() {
-        require(msg.sender == innovator, "Invalid access");
-        _;
-    }
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant INNOVATOR_ROLE = keccak256("INNOVATOR_ROLE");
 
     modifier userInWhitelist(address _wallet) {
         require(vestingPool.hasWhitelist[_wallet].active, "Not in whitelist");
@@ -48,9 +48,9 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         ContractSetup calldata c,
         VestingSetup calldata p
     ) external override initializer {
-        innovator = c._innovator;
+        __AccessControl_init();
+
         paymentReceiver = c._paymentReceiver;
-        admin = c._admin;
         vestedToken = IERC20Upgradeable(c._vestedToken);
         gracePeriod = c._gracePeriod;
         totalTokenOnSale = c._totalTokenOnSale;
@@ -58,6 +58,10 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         decimals = c._decimals;
 
         _transferOwnership(msg.sender);
+        _setupRole(DEFAULT_ADMIN_ROLE, c._admin);
+        _grantRole(INNOVATOR_ROLE, c._innovator);
+        _grantRole(ADMIN_ROLE, c._admin);
+
         addVestingStrategy(
             p._cliff,
             p._startTime,
@@ -87,8 +91,9 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         );
     }
 
-    function setVestingStartTime(uint32 _newStart) external override {
-        require(msg.sender == admin, "Only admin");
+    function setVestingStartTime(
+        uint32 _newStart
+    ) external override onlyRole(ADMIN_ROLE) {
         require(
             block.timestamp < vestingPool.start,
             "Vesting already started"
@@ -100,8 +105,7 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         emit SetVestingStartTime(_newStart);
     }
 
-    function setToken(address _token) external override {
-        require(msg.sender == admin, "Only admin");
+    function setToken(address _token) external override onlyRole(ADMIN_ROLE) {
         require(_token != address(0), "Invalid token");
         require(
             block.timestamp < vestingPool.start,
@@ -124,7 +128,7 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
 
     function claimRaisedFunds(
         address _paymentToken
-    ) external override onlyInnovator {
+    ) external override onlyRole(INNOVATOR_ROLE) {
         require(
             block.timestamp > gracePeriod + vestingPool.start,
             "grace period in progress"
@@ -147,7 +151,7 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
 
         if (amountPayment > 0) {
             IERC20Upgradeable(_paymentToken).safeTransfer(
-                innovator,
+                msg.sender,
                 amountPayment
             );
         }
@@ -163,7 +167,7 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         // transfer payment + refunded tokens to project
         if (amountTokenToReturn > 0) {
             totalReturnedToken = 0;
-            vestedToken.safeTransfer(innovator, amountTokenToReturn);
+            vestedToken.safeTransfer(msg.sender, amountTokenToReturn);
         }
 
         emit RaisedFundsClaimed(amountPayment, amountTokenToReturn);

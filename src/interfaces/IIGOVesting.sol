@@ -77,8 +77,6 @@ interface IIGOVesting {
 
     function claimRaisedFunds(address _paymentToken) external;
 
-    function admin() external view returns (address);
-
     function getReleasableAmount(
         address _wallet
     ) external view returns (uint256);
