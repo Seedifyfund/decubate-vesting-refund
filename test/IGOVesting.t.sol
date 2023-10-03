@@ -34,7 +34,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
         IIGOVesting.VestingSetup memory v;
 
         v = IIGOVesting.VestingSetup(
-            uint32(block.timestamp),
+            uint32(block.timestamp + 100),
             100_000,
             10_000_000,
             100
@@ -70,8 +70,8 @@ contract IGOVestingTest is PRBTest, StdCheats {
         setParams();
         IIGOVesting.VestingInfo memory vest = vesting.getVestingInfo();
 
-        assertEq(vest.cliff, block.timestamp + 100_000);
-        assertEq(vest.start, block.timestamp);
+        assertEq(vest.cliff, block.timestamp + 100_100);
+        assertEq(vest.start, block.timestamp + 100);
         assertEq(vest.duration, 10_000_000);
         assertEq(vest.initialUnlockPercent, 100);
     }
@@ -86,7 +86,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
         assertTrue(vesting.hasWhitelist(whitelists[0].wallet));
         uint256 amount = vesting.getVestAmount(address(this));
         assertEq(amount, 0); //Nothing until
-        vm.warp(block.timestamp + 1);
+        vm.warp(block.timestamp + 101);
         amount = vesting.getVestAmount(address(this));
         assertEq(amount, 1000e18 / 10); //10% initial unlock
         vm.warp(block.timestamp + 300 days);
@@ -108,6 +108,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
 
     function testClaim() external {
         setParams();
+        vm.warp(block.timestamp + 100);
         uint256 balBefore = vested.balanceOf(address(this));
         uint256 claimAmount = vesting.getReleasableAmount(address(this));
         vesting.claimDistribution();

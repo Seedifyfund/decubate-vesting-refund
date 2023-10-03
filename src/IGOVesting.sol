@@ -89,6 +89,10 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
 
     function setVestingStartTime(uint32 _newStart) external override {
         require(msg.sender == admin, "Only admin");
+        require(
+            block.timestamp < vestingPool.start,
+            "Vesting already started"
+        );
         uint32 cliff = vestingPool.cliff - vestingPool.start;
         vestingPool.start = _newStart;
         vestingPool.cliff = _newStart + cliff;
@@ -99,6 +103,10 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
     function setToken(address _token) external override {
         require(msg.sender == admin, "Only admin");
         require(_token != address(0), "Invalid token");
+        require(
+            block.timestamp < vestingPool.start,
+            "Vesting already started"
+        );
         vestedToken = IERC20Upgradeable(_token);
     }
 
