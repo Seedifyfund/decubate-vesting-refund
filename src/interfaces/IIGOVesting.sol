@@ -66,6 +66,7 @@ interface IIGOVesting {
     event SetVestingStartTime(uint256 _newStart);
     event SetWhitelist(address indexed wallet, uint256 amount, uint256 value);
     event TokenClaimInitialized(address _token, VestingSetup p);
+    event SetToken(address _token);
     event VestingStrategyAdded(
         uint256 _cliff,
         uint256 _start,

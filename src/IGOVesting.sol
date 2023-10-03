@@ -112,6 +112,7 @@ contract IGOVesting is
             "Vesting already started"
         );
         vestedToken = IERC20Upgradeable(_token);
+        emit SetToken(_token);
     }
 
     function refund(
