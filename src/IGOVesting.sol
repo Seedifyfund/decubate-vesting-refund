@@ -145,12 +145,6 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
         // amount of project tokens to return = amount not sold + amount refunded
         uint256 amountTokenToReturn = totalReturnedToken;
 
-        // transfer payment + refunded tokens to project
-        if (amountTokenToReturn > 0) {
-            totalReturnedToken = 0;
-            vestedToken.safeTransfer(innovator, amountTokenToReturn);
-        }
-
         if (amountPayment > 0) {
             IERC20Upgradeable(_paymentToken).safeTransfer(
                 innovator,
@@ -164,6 +158,12 @@ contract IGOVesting is OwnableUpgradeable, IIGOVesting {
                 paymentReceiver,
                 fee
             );
+        }
+
+        // transfer payment + refunded tokens to project
+        if (amountTokenToReturn > 0) {
+            totalReturnedToken = 0;
+            vestedToken.safeTransfer(innovator, amountTokenToReturn);
         }
 
         emit RaisedFundsClaimed(amountPayment, amountTokenToReturn);
