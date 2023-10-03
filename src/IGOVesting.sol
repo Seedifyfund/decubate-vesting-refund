@@ -62,7 +62,7 @@ contract IGOVesting is
         _grantRole(INNOVATOR_ROLE, c._innovator);
         _grantRole(ADMIN_ROLE, c._admin);
 
-        addVestingStrategy(
+        _addVestingStrategy(
             p._cliff,
             p._startTime,
             p._duration,
@@ -72,7 +72,7 @@ contract IGOVesting is
         emit CrowdfundingInitialized(c, p);
     }
 
-    function addVestingStrategy(
+    function _addVestingStrategy(
         uint32 _cliff,
         uint32 _start,
         uint32 _duration,
@@ -142,33 +142,31 @@ contract IGOVesting is
         // payment amount = total value - total refunded
         uint256 amountPayment = totalRaisedValue[_paymentToken] -
             totalRefundedValue[_paymentToken];
-        // calculate fee
-        uint256 fee = (amountPayment * platformFee) / decimals;
-
-        amountPayment -= fee;
 
         // amount of project tokens to return = amount not sold + amount refunded
         uint256 amountTokenToReturn = totalReturnedToken;
 
-        if (amountPayment > 0) {
-            IERC20Upgradeable(_paymentToken).safeTransfer(
-                msg.sender,
-                amountPayment
-            );
+        // transfer payment + refunded tokens to project
+        if (amountTokenToReturn > 0) {
+            totalReturnedToken = 0;
+            vestedToken.safeTransfer(msg.sender, amountTokenToReturn);
         }
 
-        // transfer crowdfunding fee to payment receiver wallet
+        // calculate fee
         if (platformFee > 0) {
+            uint256 fee = (amountPayment * platformFee) / decimals;
+            amountPayment -= fee;
             IERC20Upgradeable(_paymentToken).safeTransfer(
                 paymentReceiver,
                 fee
             );
         }
 
-        // transfer payment + refunded tokens to project
-        if (amountTokenToReturn > 0) {
-            totalReturnedToken = 0;
-            vestedToken.safeTransfer(msg.sender, amountTokenToReturn);
+        if (amountPayment > 0) {
+            IERC20Upgradeable(_paymentToken).safeTransfer(
+                msg.sender,
+                amountPayment
+            );
         }
 
         emit RaisedFundsClaimed(amountPayment, amountTokenToReturn);
@@ -196,13 +194,13 @@ contract IGOVesting is
     function getVestAmount(
         address _wallet
     ) external view override returns (uint256) {
-        return calculateVestAmount(_wallet);
+        return _calculateVestAmount(_wallet);
     }
 
     function getReleasableAmount(
         address _wallet
     ) external view override returns (uint256) {
-        return calculateReleasableAmount(_wallet);
+        return _calculateReleasableAmount(_wallet);
     }
 
     function getWhitelistPool(
@@ -222,7 +220,7 @@ contract IGOVesting is
         }
     }
 
-    function claimDistribution() public override returns (bool, uint256) {
+    function claimDistribution() external override returns (bool, uint256) {
         uint256 releaseAmount = _updateStorageOnDistribution(msg.sender);
 
         emit Claim(msg.sender, releaseAmount, block.timestamp);
@@ -239,7 +237,7 @@ contract IGOVesting is
         address _paymentToken,
         uint256 _tokenAmount,
         uint256 _refundFee
-    ) public override onlyOwner {
+    ) external override onlyOwner {
         HasWhitelist storage whitelist = vestingPool.hasWhitelist[_wallet];
         UserTag storage uTag = userTag[_tagId][_wallet];
 
@@ -278,7 +276,7 @@ contract IGOVesting is
     }
 
     function getVestingInfo()
-        public
+        external
         view
         override
         returns (VestingInfo memory)
@@ -292,51 +290,47 @@ contract IGOVesting is
             });
     }
 
-    function calculateVestAmount(
+    function _calculateVestAmount(
         address _wallet
     ) internal view userInWhitelist(_wallet) returns (uint256 amount) {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         uint256 _amount = vestingPool.whitelistPool[idx].amount;
-        VestingPool storage vest = vestingPool;
 
-        // initial unlock
-        uint256 initial = (_amount * vest.initialUnlockPercent) / 1000;
-
-        if (block.timestamp < vest.start) {
+        if (block.timestamp < vestingPool.start) {
             return 0;
         } else if (
-            block.timestamp >= vest.start && block.timestamp < vest.cliff
+            block.timestamp >= vestingPool.start &&
+            block.timestamp < vestingPool.cliff
         ) {
-            return initial;
-        } else if (block.timestamp >= vest.cliff) {
-            return calculateVestAmountForLinear(_amount, vest);
+            return (_amount * vestingPool.initialUnlockPercent) / 1000;
+        } else if (block.timestamp >= vestingPool.cliff) {
+            return _calculateVestAmountForLinear(_amount);
         }
     }
 
-    function calculateVestAmountForLinear(
-        uint256 _amount,
-        VestingPool storage vest
+    function _calculateVestAmountForLinear(
+        uint256 _amount
     ) internal view returns (uint256) {
-        uint256 initial = (_amount * vest.initialUnlockPercent) / 1000;
+        uint256 initial = (_amount * vestingPool.initialUnlockPercent) / 1000;
 
         uint256 remaining = _amount - initial;
 
-        if (block.timestamp >= vest.cliff + vest.duration) {
+        if (block.timestamp >= vestingPool.cliff + vestingPool.duration) {
             return _amount;
         } else {
             return
                 initial +
-                (remaining * (block.timestamp - vest.cliff)) /
-                vest.duration;
+                (remaining * (block.timestamp - vestingPool.cliff)) /
+                vestingPool.duration;
         }
     }
 
-    function calculateReleasableAmount(
+    function _calculateReleasableAmount(
         address _wallet
     ) internal view userInWhitelist(_wallet) returns (uint256) {
         uint256 idx = vestingPool.hasWhitelist[_wallet].arrIdx;
         return
-            calculateVestAmount(_wallet) -
+            _calculateVestAmount(_wallet) -
             vestingPool.whitelistPool[idx].distributedAmount;
     }
 
@@ -384,7 +378,7 @@ contract IGOVesting is
 
         require(whitelist.amount != 0, "user already refunded");
 
-        releaseAmount = calculateReleasableAmount(_wallet);
+        releaseAmount = _calculateReleasableAmount(_wallet);
 
         require(releaseAmount > 0, "Zero amount");
 
