@@ -49,6 +49,7 @@ contract IGOVesting is
         VestingSetup calldata p
     ) external override initializer {
         __AccessControl_init();
+        __Ownable_init();
 
         paymentReceiver = c._paymentReceiver;
         vestedToken = IERC20Upgradeable(c._vestedToken);
@@ -57,7 +58,6 @@ contract IGOVesting is
         platformFee = c._platformFee;
         decimals = c._decimals;
 
-        _transferOwnership(msg.sender);
         _setupRole(DEFAULT_ADMIN_ROLE, c._admin);
         _grantRole(INNOVATOR_ROLE, c._innovator);
         _grantRole(ADMIN_ROLE, c._admin);
