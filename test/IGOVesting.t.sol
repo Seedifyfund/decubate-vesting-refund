@@ -20,7 +20,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
     address internal user2 = makeAddr("user2");
     address internal user3 = makeAddr("user3");
 
-    function setUp() public {
+    function setUp() external {
         vested = new MockToken("Sale Token", "STK", 1e35);
         payment = new MockToken("Test Stable Coin ", "BUSD", 1e35);
         payment2 = new MockToken("Test Stable Coin ", "BUSD", 1e35);
@@ -28,42 +28,6 @@ contract IGOVestingTest is PRBTest, StdCheats {
 
         vested.transfer(address(vesting), 1400e18);
         payment.transfer(address(vesting), 100e18);
-    }
-
-    function setParams() internal {
-        IIGOVesting.VestingSetup memory v;
-
-        v = IIGOVesting.VestingSetup(
-            uint32(block.timestamp + 100),
-            100_000,
-            10_000_000,
-            100
-        );
-
-        vesting.initializeCrowdfunding(
-            IIGOVesting.ContractSetup(
-                address(1),
-                address(2),
-                address(3),
-                address(vested),
-                50,
-                1000e18,
-                1 days,
-                1000
-            ),
-            v
-        );
-
-        vesting.setCrowdfundingWhitelist(
-            "testTag",
-            address(this),
-            100e18,
-            address(payment),
-            1000e18,
-            10
-        );
-
-        vesting.transferOwnership(address(this));
     }
 
     function testAddLinearVesting() external {
@@ -285,5 +249,41 @@ contract IGOVestingTest is PRBTest, StdCheats {
         (uint32 startTime, , , ) = vesting.vestingPool();
         assertTrue(startTime == uint32(block.timestamp + 100));
         assertTrue(address(vesting.vestedToken()) == address(4));
+    }
+
+    function setParams() internal {
+        IIGOVesting.VestingSetup memory v;
+
+        v = IIGOVesting.VestingSetup(
+            uint32(block.timestamp + 100),
+            100_000,
+            10_000_000,
+            100
+        );
+
+        vesting.initializeCrowdfunding(
+            IIGOVesting.ContractSetup(
+                address(1),
+                address(2),
+                address(3),
+                address(vested),
+                50,
+                1000e18,
+                1 days,
+                1000
+            ),
+            v
+        );
+
+        vesting.setCrowdfundingWhitelist(
+            "testTag",
+            address(this),
+            100e18,
+            address(payment),
+            1000e18,
+            10
+        );
+
+        vesting.transferOwnership(address(this));
     }
 }
