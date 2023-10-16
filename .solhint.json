@@ -8,6 +8,7 @@
         "func-visibility": ["error", { "ignoreConstructors": true }],
         "state-visibility": "error",
         "max-line-length": ["error", 140],
+        "ordering": "warn",
         "not-rely-on-time": "off",
         "prettier/prettier": [
             "error",
