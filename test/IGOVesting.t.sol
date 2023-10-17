@@ -20,7 +20,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
     address internal user2 = makeAddr("user2");
     address internal user3 = makeAddr("user3");
 
-    function setUp() public {
+    function setUp() external {
         vested = new MockToken("Sale Token", "STK", 1e35);
         payment = new MockToken("Test Stable Coin ", "BUSD", 1e35);
         payment2 = new MockToken("Test Stable Coin ", "BUSD", 1e35);
@@ -30,48 +30,12 @@ contract IGOVestingTest is PRBTest, StdCheats {
         payment.transfer(address(vesting), 100e18);
     }
 
-    function setParams() internal {
-        IIGOVesting.VestingSetup memory v;
-
-        v = IIGOVesting.VestingSetup(
-            uint32(block.timestamp),
-            100_000,
-            10_000_000,
-            100
-        );
-
-        vesting.initializeCrowdfunding(
-            IIGOVesting.ContractSetup(
-                address(1),
-                address(2),
-                address(3),
-                address(vested),
-                50,
-                1000e18,
-                1 days,
-                1000
-            ),
-            v
-        );
-
-        vesting.setCrowdfundingWhitelist(
-            "testTag",
-            address(this),
-            100e18,
-            address(payment),
-            1000e18,
-            10
-        );
-
-        vesting.transferOwnership(address(this));
-    }
-
     function testAddLinearVesting() external {
         setParams();
         IIGOVesting.VestingInfo memory vest = vesting.getVestingInfo();
 
-        assertEq(vest.cliff, block.timestamp + 100_000);
-        assertEq(vest.start, block.timestamp);
+        assertEq(vest.cliff, block.timestamp + 100_100);
+        assertEq(vest.start, block.timestamp + 100);
         assertEq(vest.duration, 10_000_000);
         assertEq(vest.initialUnlockPercent, 100);
     }
@@ -86,7 +50,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
         assertTrue(vesting.hasWhitelist(whitelists[0].wallet));
         uint256 amount = vesting.getVestAmount(address(this));
         assertEq(amount, 0); //Nothing until
-        vm.warp(block.timestamp + 1);
+        vm.warp(block.timestamp + 101);
         amount = vesting.getVestAmount(address(this));
         assertEq(amount, 1000e18 / 10); //10% initial unlock
         vm.warp(block.timestamp + 300 days);
@@ -108,6 +72,7 @@ contract IGOVestingTest is PRBTest, StdCheats {
 
     function testClaim() external {
         setParams();
+        vm.warp(block.timestamp + 100);
         uint256 balBefore = vested.balanceOf(address(this));
         uint256 claimAmount = vesting.getReleasableAmount(address(this));
         vesting.claimDistribution();
@@ -284,5 +249,41 @@ contract IGOVestingTest is PRBTest, StdCheats {
         (uint32 startTime, , , ) = vesting.vestingPool();
         assertTrue(startTime == uint32(block.timestamp + 100));
         assertTrue(address(vesting.vestedToken()) == address(4));
+    }
+
+    function setParams() internal {
+        IIGOVesting.VestingSetup memory v;
+
+        v = IIGOVesting.VestingSetup(
+            uint32(block.timestamp + 100),
+            100_000,
+            10_000_000,
+            100
+        );
+
+        vesting.initializeCrowdfunding(
+            IIGOVesting.ContractSetup(
+                address(1),
+                address(2),
+                address(3),
+                address(vested),
+                50,
+                1000e18,
+                1 days,
+                1000
+            ),
+            v
+        );
+
+        vesting.setCrowdfundingWhitelist(
+            "testTag",
+            address(this),
+            100e18,
+            address(payment),
+            1000e18,
+            10
+        );
+
+        vesting.transferOwnership(address(this));
     }
 }
