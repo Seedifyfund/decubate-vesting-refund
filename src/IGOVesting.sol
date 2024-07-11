@@ -185,27 +185,23 @@ contract IGOVesting is IIGOVesting, AccessControlUpgradeable {
     /**
      * @dev Sets the whitelist status for a user's wallet and payment details.
      * Only the contract owner can call this function.
-     * @param _tagId Identifier for the user's refund tag.
-     * @param _wallet Address of the user's wallet.
-     * @param _paymentAmount Payment amount in the payment token.
-     * @param _paymentToken Address of the payment token.
-     * @param _tokenAmount Amount of tokens to be vested.
-     * @param _refundFee Refund fee in percentage.
+     * @param data IGOData struct containing user's payment and vesting details:
+     *       _tagId Identifier for the user's refund tag.
+     *       _wallet Address of the user's wallet.
+     *       _paymentAmount Payment amount in the payment token.
+     *       _paymentToken Address of the payment token.
+     *       _tokenAmount Amount of tokens to be vested.
+     *       _refundFee Refund fee in percentage.
      */
     function setCrowdfundingWhitelist(
-        string calldata _tagId,
-        address _wallet,
-        uint256 _paymentAmount,
-        address _paymentToken,
-        uint256 _tokenAmount,
-        uint256 _refundFee
+        IGOData calldata data
     ) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-        HasWhitelist storage whitelist = vestingPool.hasWhitelist[_wallet];
-        UserTag storage uTag = userTag[_tagId][_wallet];
+        HasWhitelist storage whitelist = vestingPool.hasWhitelist[data._wallet];
+        UserTag storage uTag = userTag[data._tagId][data._wallet];
 
         //Payment token constant per tag
-        if (paymentToken[_tagId] == address(0)) {
-            paymentToken[_tagId] = _paymentToken;
+        if (paymentToken[data._tagId] == address(0)) {
+            paymentToken[data._tagId] = data._paymentToken;
         }
 
         if (!whitelist.active) {
@@ -214,8 +210,8 @@ contract IGOVesting is IIGOVesting, AccessControlUpgradeable {
 
             vestingPool.whitelistPool.push(
                 WhitelistInfo({
-                    wallet: _wallet,
-                    amount: _tokenAmount,
+                    wallet: data._wallet,
+                    amount: data._tokenAmount,
                     distributedAmount: 0,
                     joinDate: uint32(block.timestamp)
                 })
@@ -225,16 +221,20 @@ contract IGOVesting is IIGOVesting, AccessControlUpgradeable {
                 whitelist.arrIdx
             ];
 
-            w.amount += _tokenAmount;
+            w.amount += data._tokenAmount;
         }
 
-        totalRaisedValue[_paymentToken] += _paymentAmount;
-        totalVestedToken += _tokenAmount;
-        uTag.paymentAmount += _paymentAmount;
-        uTag.tokenAmount += _tokenAmount;
-        uTag.refundFee = _refundFee;
+        totalRaisedValue[data._paymentToken] += data._paymentAmount;
+        totalVestedToken += data._tokenAmount;
+        uTag.paymentAmount += data._paymentAmount;
+        uTag.tokenAmount += data._tokenAmount;
+        uTag.refundFee = data._refundFee;
 
-        emit SetWhitelist(_wallet, _tokenAmount, _paymentAmount);
+        emit SetWhitelist(
+            data._wallet,
+            data._tokenAmount,
+            data._paymentAmount
+        );
     }
 
     /**
