@@ -58,6 +58,15 @@ interface IIGOVesting {
         uint256 distributedAmount;
     }
 
+    struct IGOData {
+        string _tagId;
+        address _wallet;
+        uint256 _paymentAmount;
+        address _paymentToken;
+        uint256 _tokenAmount;
+        uint256 _refundFee;
+    }
+
     event BuybackAndBurn(uint256 amount);
     event Claim(address indexed token, uint256 amount, uint256 time);
     event CrowdfundingInitialized(ContractSetup c, VestingSetup p);
@@ -106,14 +115,7 @@ interface IIGOVesting {
 
     function refund(string calldata _tagId) external;
 
-    function setCrowdfundingWhitelist(
-        string calldata _tagId,
-        address _wallet,
-        uint256 _paymentAmount,
-        address _paymentToken,
-        uint256 _tokenAmount,
-        uint256 _refundFee
-    ) external;
+    function setCrowdfundingWhitelist(IGOData calldata data) external;
 
     function setToken(address _token) external;
 
